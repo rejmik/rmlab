@@ -66,6 +66,8 @@ def _startup():
                              (uname, ADMIN_NAME or ADMIN_USER, hash_password(ADMIN_PASSWORD)))
             print(f"[rmlab] heslo admina {uname} nastaveno z LF_ADMIN_PASSWORD – smažte LF_ADMIN_RESET", flush=True)
         print("[rmlab] uživatelé: " + ", ".join(r[0] for r in conn.execute("SELECT username FROM users")), flush=True)
+        if ADMIN_PASSWORD:
+            print(f"[rmlab] heslo z LF_ADMIN_PASSWORD má {len(ADMIN_PASSWORD)} znaků", flush=True)
         # import se zkouší při každém startu, dokud jednou celý neproběhne (i po přerušení nebo plném disku)
         need_data = AUTO_IMPORT and get_meta(conn, "auto_import_done") != "1"
     if need_data:

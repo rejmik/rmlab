@@ -45,7 +45,9 @@ HTTPS_ONLY = os.environ.get("LF_HTTPS", "0") == "1"
 ROOT_REDIRECT = os.environ.get("LF_ROOT_REDIRECT", "")
 # První admin – založí se při startu, pokud v databázi ještě nikdo není
 ADMIN_USER = os.environ.get("LF_ADMIN_USER", "")
-ADMIN_PASSWORD = os.environ.get("LF_ADMIN_PASSWORD", "")
+_raw_pw = os.environ.get("LF_ADMIN_PASSWORD", "")
+# mezery a uvozovky kolem hesla vzniknou snadno při kopírování do nastavení serveru – odstraníme je
+ADMIN_PASSWORD = _raw_pw.strip().strip('"').strip("'")
 ADMIN_NAME = os.environ.get("LF_ADMIN_NAME", "")
 # 1 = při startu nastavit adminovi heslo z LF_ADMIN_PASSWORD (když heslo nefunguje); pak proměnnou smazat
 ADMIN_RESET = os.environ.get("LF_ADMIN_RESET", "0") == "1"
