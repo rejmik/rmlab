@@ -55,3 +55,18 @@ ADMIN_RESET = os.environ.get("LF_ADMIN_RESET", "0") == "1"
 AUTO_IMPORT = os.environ.get("LF_AUTO_IMPORT", "0") == "1"
 # Omezení pokusů o přihlášení: max. počet neúspěchů z jedné IP za 15 minut
 LOGIN_MAX_FAILS = int(os.environ.get("LF_LOGIN_MAX_FAILS", "10"))
+
+# --- poptávky z webu: upozornění e-mailem (nepovinné) ---
+# Komu poslat upozornění na novou poptávku (víc adres oddělte čárkou)
+NOTIFY_TO = os.environ.get("LF_NOTIFY_TO", "")
+# Varianta A – Resend (https://resend.com), funguje i tam, kde hosting blokuje SMTP
+RESEND_API_KEY = os.environ.get("LF_RESEND_API_KEY", "")
+# Varianta B – vlastní SMTP server
+SMTP_HOST = os.environ.get("LF_SMTP_HOST", "")
+SMTP_PORT = int(os.environ.get("LF_SMTP_PORT", "587"))
+SMTP_USER = os.environ.get("LF_SMTP_USER", "")
+SMTP_PASSWORD = os.environ.get("LF_SMTP_PASSWORD", "")
+# Odesílatel; u Resend bez ověřené domény jde jen onboarding@resend.dev (a jen na e-mail účtu Resend)
+MAIL_FROM = os.environ.get("LF_MAIL_FROM", "RM Lab <onboarding@resend.dev>")
+# Adresa CRM do odkazu v e-mailu
+PUBLIC_URL = os.environ.get("LF_PUBLIC_URL", "https://rmlab.rejmon.net")

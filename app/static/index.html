@@ -33,6 +33,7 @@
     <div class="brand"><img class="brand-logo" src="/static/img/rmlab-wordmark.svg" alt="RM Lab" height="34"> <span id="demo-badge" class="badge warn hidden">DEMO data</span></div>
     <nav class="tabs">
       <button class="tab active" data-view="search">Hledání</button>
+      <button class="tab" data-view="inquiries">Poptávky <span id="inq-count" class="badge won hidden"></span></button>
       <button class="tab" data-view="mine">Moje leady</button>
       <button class="tab" data-view="sites">Weby</button>
       <button class="tab" data-view="checklist">Checklist</button>
@@ -128,6 +129,13 @@
     <div class="panel">
       <h2>Moje rozpracované leady</h2>
       <div id="mine-body"></div>
+    </div>
+  </main>
+  <main id="view-inquiries" class="view list-view hidden">
+    <div class="panel">
+      <h2>Poptávky z webu</h2>
+      <p class="muted small-text">Co lidé poslali formulářem na rmlab.rejmon.net. Vyřízenou poptávku označte, ať ji neřeší dva lidé najednou.</p>
+      <div id="inq-body"></div>
     </div>
   </main>
   <main id="view-sites" class="view list-view hidden">

@@ -31,6 +31,22 @@ CREATE VIRTUAL TABLE IF NOT EXISTS firm_geo USING rtree(
     id, min_lat, max_lat, min_lon, max_lon
 );
 
+-- Poptávky z formuláře na veřejném webu
+CREATE TABLE IF NOT EXISTS inquiries (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at TEXT NOT NULL,
+    name       TEXT NOT NULL,
+    company    TEXT NOT NULL,
+    contact    TEXT NOT NULL,
+    need       TEXT,
+    message    TEXT,
+    ip         TEXT,
+    status     TEXT NOT NULL DEFAULT 'new',     -- new | done
+    handled_by INTEGER,
+    handled_at TEXT,
+    note       TEXT
+);
+
 -- Malá kopie polí potřebných pro filtrování při hledání (vejde se do paměti).
 -- Velká tabulka firms se pak čte jen pro firmy, které projdou filtrem.
 CREATE TABLE IF NOT EXISTS firm_mini (

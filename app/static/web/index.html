@@ -197,6 +197,8 @@ textarea { min-height: 120px; resize: vertical; }
 .form-row { display: grid; gap: 14px; }
 .form-msg { font-weight: 600; min-height: 1.4em; }
 .form-msg span { user-select: all; }
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.form-msg.ok { color: var(--ok, #1e9e5a); }
 
 footer { padding-block: 34px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
 footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: center; justify-content: space-between; }
@@ -465,6 +467,7 @@ footer .logo-svg { height: 28px; }
             </select>
           </label>
           <label for="f-zprava">Pár slov o firmě<textarea id="f-zprava" name="zprava" placeholder="Např. kadeřnictví v Brandýse, nemáme web, chtěli bychom ceník a objednávky po telefonu."></textarea></label>
+          <label class="hp" aria-hidden="true">Web<input name="web" tabindex="-1" autocomplete="off"></label>
           <button class="btn" type="submit"><span class="dot"></span>Odeslat poptávku</button>
           <p class="form-msg" id="form-msg" role="status"></p>
         </form>
@@ -493,19 +496,31 @@ footer .logo-svg { height: 28px; }
   }
   if (tc && !still) setInterval(tick, 40);
 
-  // poptávka: připraví e-mail se vším vyplněným
-  var f = document.getElementById("poptavka"), msg = document.getElementById("form-msg");
+  // poptávka: odešle se do CRM RM Lab; když server není dostupný, nabídne e-mail
+  var f = document.getElementById("poptavka"), msg = document.getElementById("form-msg"), btn = f.querySelector("button[type=submit]");
+  function fallback(d) {
+    var body = "Jméno: " + d.get("jmeno") + "\nFirma: " + d.get("firma") + "\nKontakt: " + d.get("kontakt") +
+      "\nCo potřebuji: " + d.get("co") + "\n\n" + (d.get("zprava") || "");
+    msg.className = "form-msg"; msg.innerHTML = "";
+    msg.append("Poptávku se teď nepodařilo odeslat. Otevíráme váš e-mail s připravenou zprávou, případně nám napište na ");
+    var s = document.createElement("span"); s.textContent = "rejmil.web@gmail.com"; msg.append(s, ".");
+    window.location.href = "mailto:rejmil.web@gmail.com?subject=" + encodeURIComponent("Poptávka webu – " + d.get("firma")) + "&body=" + encodeURIComponent(body);
+  }
   f.addEventListener("submit", function (ev) {
     ev.preventDefault();
     var miss = [].filter.call(f.querySelectorAll("[required]"), function (i) { return !i.value.trim(); });
-    if (miss.length) { msg.textContent = "Vyplňte prosím jméno, firmu a kontakt, ať se vám můžeme ozvat."; miss[0].focus(); return; }
-    var d = new FormData(f), body = "Jméno: " + d.get("jmeno") + "\nFirma: " + d.get("firma") + "\nKontakt: " + d.get("kontakt") +
-      "\nCo potřebuji: " + d.get("co") + "\n\n" + (d.get("zprava") || "");
-    var href = "mailto:rejmil.web@gmail.com?subject=" + encodeURIComponent("Poptávka webu – " + d.get("firma")) + "&body=" + encodeURIComponent(body);
-    msg.innerHTML = "";
-    msg.append("Otevíráme váš e-mail s připravenou zprávou. Kdyby se neotevřel, napište nám na ");
-    var s = document.createElement("span"); s.textContent = "rejmil.web@gmail.com"; msg.append(s, ".");
-    window.location.href = href;
+    if (miss.length) { msg.className = "form-msg"; msg.textContent = "Vyplňte prosím jméno, firmu a kontakt, ať se vám můžeme ozvat."; miss[0].focus(); return; }
+    var d = new FormData(f);
+    btn.disabled = true; msg.className = "form-msg"; msg.textContent = "Odesíláme…";
+    fetch("/api/public/inquiry", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: d.get("jmeno"), company: d.get("firma"), contact: d.get("kontakt"),
+                             need: d.get("co"), message: d.get("zprava") || "", web: d.get("web") || "" })
+    }).then(function (r) {
+      if (r.ok) { f.reset(); msg.className = "form-msg ok"; msg.textContent = "Děkujeme! Poptávka dorazila, ozveme se vám do druhého dne."; return; }
+      if (r.status === 422 || r.status === 429) return r.json().then(function (j) { msg.textContent = j.detail || "Zkontrolujte prosím formulář."; });
+      fallback(d);
+    }).catch(function () { fallback(d); }).finally(function () { btn.disabled = false; });
   });
 })();
 </script>

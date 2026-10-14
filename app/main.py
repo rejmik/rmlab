@@ -236,6 +236,7 @@ def meta(user=Depends(current_user), conn=Depends(db)):
     users = [dict(r) for r in conn.execute("SELECT id, display_name FROM users WHERE active=1 ORDER BY display_name")]
     return {
         "import": dict(IMPORT_STATE),
+        "inquiries_new": conn.execute("SELECT COUNT(*) FROM inquiries WHERE status='new'").fetchone()[0],
         "demo": enrich.is_demo(conn),
         "google": places.enabled() or enrich.is_demo(conn),
         "firms": conn.execute("SELECT COUNT(*) FROM firm_geo").fetchone()[0],
@@ -1028,3 +1029,63 @@ def brand_file(fname: str):
     if not p:
         raise HTTPException(404)
     return FileResponse(p)
+
+
+# ---------------------------------------------------------------- poptávky z veřejného webu
+
+class InquiryIn(BaseModel):
+    name: str = Field("", max_length=120)
+    company: str = Field("", max_length=160)
+    contact: str = Field("", max_length=160)
+    need: str = Field("", max_length=120)
+    message: str = Field("", max_length=4000)
+    web: str = ""          # past na roboty – skryté pole, člověk ho nevyplní
+
+
+_INQ: dict = {}
+
+
+@app.post("/api/public/inquiry")
+def public_inquiry(body: InquiryIn, request: Request, conn=Depends(db)):
+    if body.web.strip():                      # robot – tváříme se, že je vše v pořádku
+        return {"ok": True}
+    if not (body.name.strip() and body.company.strip() and body.contact.strip()):
+        raise HTTPException(422, "Vyplňte prosím jméno, firmu a kontakt.")
+    ip = _client_ip(request)
+    now = dt.datetime.now().timestamp()
+    recent = [t for t in _INQ.get(ip, []) if now - t < 3600]
+    if len(recent) >= 5:
+        raise HTTPException(429, "Poptávek bylo z této adresy odesláno už hodně. Zkuste to prosím později nebo zavolejte.")
+    _INQ[ip] = recent + [now]
+    q = {"name": body.name.strip(), "company": body.company.strip(), "contact": body.contact.strip(),
+         "need": body.need.strip(), "message": body.message.strip()}
+    conn.execute("INSERT INTO inquiries(created_at, name, company, contact, need, message, ip) VALUES (?,?,?,?,?,?,?)",
+                 (_iso(_now()), q["name"], q["company"], q["contact"], q["need"], q["message"], ip))
+    import threading
+    from . import notify
+    threading.Thread(target=notify.send_inquiry, args=(q,), daemon=True).start()
+    return {"ok": True}
+
+
+@app.get("/api/inquiries")
+def list_inquiries(user=Depends(current_user), conn=Depends(db)):
+    rows = conn.execute("""SELECT i.*, u.display_name handled_by_name FROM inquiries i
+                           LEFT JOIN users u ON u.id = i.handled_by ORDER BY (i.status = 'new') DESC, i.id DESC LIMIT 300""")
+    return [dict(r) for r in rows]
+
+
+class InquiryUpdate(BaseModel):
+    status: str
+    note: str = Field("", max_length=2000)
+
+
+@app.put("/api/inquiries/{iid}")
+def update_inquiry(iid: int, body: InquiryUpdate, user=Depends(current_user), conn=Depends(db)):
+    if body.status not in ("new", "done"):
+        raise HTTPException(400, "Neplatný stav")
+    n = conn.execute("UPDATE inquiries SET status=?, note=?, handled_by=?, handled_at=? WHERE id=?",
+                     (body.status, body.note, user["id"] if body.status == "done" else None,
+                      _iso(_now()) if body.status == "done" else None, iid)).rowcount
+    if not n:
+        raise HTTPException(404, "Poptávka neexistuje")
+    return list_inquiries(user, conn)

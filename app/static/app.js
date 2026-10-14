@@ -52,6 +52,8 @@ async function boot() {
   state.meta = await api("/api/meta");
   $("#demo-badge").classList.toggle("hidden", !state.meta.demo);
   showImport(state.meta.import);
+  setInqCount(state.meta.inquiries_new);
+  if (location.hash === "#poptavky") $('.tab[data-view="inquiries"]').click();
   $("#data-info").textContent = `${state.meta.firms.toLocaleString("cs-CZ")} firem s polohou · data RES: ${state.meta.res_imported_at || "neimportováno"}` +
     (state.meta.google ? "" : " · Google Places není nastaven");
   $("#enrich-n").max = state.meta.enrich_max;
@@ -416,6 +418,7 @@ $$(".tab").forEach((t) => t.addEventListener("click", () => {
   $$(".tab").forEach((x) => x.classList.toggle("active", x === t));
   $$(".view").forEach((v) => v.classList.add("hidden"));
   $("#view-" + t.dataset.view).classList.remove("hidden");
+  if (t.dataset.view === "inquiries") loadInquiries();
   if (t.dataset.view === "mine") loadList("mine", "#mine-body");
   if (t.dataset.view === "team") { loadList("all", "#team-body"); loadStats(); if (state.me.is_admin) { loadUsers(); loadProducts(); loadBrand(); } }
   if (t.dataset.view === "checklist") loadChecklist();
@@ -796,6 +799,33 @@ function showImport(im) {
     try { const m = await api("/api/meta"); showImport(m.import); if (!m.import.running) location.reload(); } catch {}
   }, 30000);
 }
+
+// ---------- poptávky z webu
+function setInqCount(n) {
+  const b = $("#inq-count"); if (!b) return;
+  b.textContent = n || ""; b.classList.toggle("hidden", !n);
+}
+async function loadInquiries() {
+  try { renderInquiries(await api("/api/inquiries")); } catch (err) { $("#inq-body").innerHTML = `<p class="error">${esc(err.message)}</p>`; }
+}
+function renderInquiries(rows) {
+  setInqCount(rows.filter((r) => r.status === "new").length);
+  $("#inq-body").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Kdy</th><th>Kdo</th><th>Kontakt</th><th>Co potřebuje</th><th>Stav</th><th></th></tr></thead><tbody>` +
+    rows.map((r) => `<tr class="${r.status === "done" ? "inactive" : ""}">
+      <td class="sub">${fmtDT(r.created_at)}</td>
+      <td><div class="firm-name">${esc(r.company)}</div><div class="sub">${esc(r.name)}</div></td>
+      <td class="mono">${esc(r.contact)}</td>
+      <td><b>${esc(r.need || "")}</b>${r.message ? `<div class="sub" style="white-space:pre-line;max-width:46ch">${esc(r.message)}</div>` : ""}</td>
+      <td>${r.status === "new" ? '<span class="badge won">Nová</span>' : `<span class="badge">Vyřízeno</span><div class="sub">${esc(r.handled_by_name || "")} ${fmtDT(r.handled_at)}</div>`}</td>
+      <td><button class="btn small ${r.status === "new" ? "primary" : "ghost"}" data-inq="${r.id}" data-st="${r.status === "new" ? "done" : "new"}">${r.status === "new" ? "Vyřízeno" : "Vrátit"}</button></td>
+    </tr>`).join("") + "</tbody></table></div>"
+    : '<p class="muted">Zatím žádná poptávka. Jakmile někdo vyplní formulář na webu, objeví se tady.</p>';
+}
+$("#inq-body").addEventListener("click", async (e) => {
+  const b = e.target.closest("button[data-inq]"); if (!b) return;
+  try { renderInquiries(await api("/api/inquiries/" + b.dataset.inq, { method: "PUT", body: { status: b.dataset.st } })); }
+  catch (err) { toast(err.message); }
+});
 
 function renderEditor() {
   const s = ed.site, d = s.data;
