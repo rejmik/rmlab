@@ -8,13 +8,8 @@
 name: Web na Wedos
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - "app/static/web/**"
-      - "app/static/img/favicon.svg"
-      - "deploy/wedos/**"
-      - ".github/workflows/web-wedos.yml"
+  # Veřejný web teď běží z Railway (rmlab.rejmon.net) spolu s CRM.
+  # Nahrání na Wedos zůstává jen pro ruční spuštění (Actions → Run workflow).
   workflow_dispatch:
 
 jobs:
