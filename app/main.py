@@ -196,7 +196,10 @@ def crm_redirect():
 @app.get("/nase-crm/", include_in_schema=False)
 def index():
     """Neveřejná část – vyhledávání firem, CRM, editor webů."""
-    return FileResponse(STATIC / "index.html", headers={"X-Robots-Tag": "noindex, nofollow"})
+    v = str(int(max((STATIC / f).stat().st_mtime for f in ("app.js", "style.css"))))
+    html = (STATIC / "index.html").read_text(encoding="utf-8")
+    html = html.replace('/static/app.js"', '/static/app.js?v=' + v + '"').replace('/static/style.css"', '/static/style.css?v=' + v + '"')
+    return Response(html, media_type="text/html", headers={"X-Robots-Tag": "noindex, nofollow", "Cache-Control": "no-cache"})
 
 
 @app.get("/robots.txt", include_in_schema=False)
