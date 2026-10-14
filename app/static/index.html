@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>RM Lab</title>
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/static/img/rmlab-icon-dark.svg">
+<meta name="theme-color" content="#ffffff">
+<link rel="stylesheet" href="/static/vendor/leaflet/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@700;800&family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+<!-- Přihlášení -->
+<section id="login" class="login hidden">
+  <form id="login-form" class="login-card">
+    <div class="brand login-brand"><img src="/static/img/rmlab-logo.svg" alt="RM Lab – foto · video · AI" height="72"></div>
+    <p class="muted">Firmy bez webu v okolí + evidence oslovení.</p>
+    <label>Uživatel<input name="username" autocomplete="username" required></label>
+    <label>Heslo<input name="password" type="password" autocomplete="current-password" required></label>
+    <button class="btn primary" type="submit">Přihlásit</button>
+    <p id="login-error" class="error"></p>
+  </form>
+</section>
+
+<!-- Aplikace -->
+<section id="app" class="app hidden">
+  <header class="topbar">
+    <div class="brand"><img class="brand-logo" src="/static/img/rmlab-wordmark.svg" alt="RM Lab" height="34"> <span id="demo-badge" class="badge warn hidden">DEMO data</span></div>
+    <nav class="tabs">
+      <button class="tab active" data-view="search">Hledání</button>
+      <button class="tab" data-view="mine">Moje leady</button>
+      <button class="tab" data-view="sites">Weby</button>
+      <button class="tab" data-view="checklist">Checklist</button>
+      <button class="tab" data-view="team">Tým</button>
+    </nav>
+    <div class="user"><span id="user-name"></span><button id="pw-btn" class="btn ghost small">Heslo</button><button id="logout" class="btn ghost small">Odhlásit</button></div>
+  </header>
+
+  <!-- Hledání -->
+  <main id="view-search" class="view search-view">
+    <aside class="panel filters">
+      <form id="search-form">
+        <div class="field">
+          <label for="obec">Střed okruhu</label>
+          <div class="autocomplete">
+            <input id="obec" placeholder="Obec, např. Čelákovice" autocomplete="off">
+            <ul id="obec-list" class="ac-list hidden"></ul>
+          </div>
+          <small class="muted" id="center-label">…nebo klikněte do mapy</small>
+        </div>
+        <div class="field">
+          <label for="radius">Okruh <output id="radius-out">10 km</output></label>
+          <input id="radius" type="range" min="1" max="50" value="10">
+        </div>
+        <div class="field">
+          <label>Typ subjektu</label>
+          <div id="forms" class="checks"></div>
+        </div>
+        <div class="field">
+          <label>Obory <span class="muted" id="nace-count">všechny</span></label>
+          <div class="row gap wrap">
+            <button type="button" class="btn small" id="preset-venues">Kadeřnictví, kavárny, restaurace</button>
+            <button type="button" class="btn small" id="preset-local">Řemesla a služby</button>
+            <button type="button" class="btn small ghost" id="preset-all">Všechny</button>
+          </div>
+          <details class="nace-box">
+            <summary>Vybrat ručně</summary>
+            <input id="nace-filter" placeholder="Filtrovat obory…">
+            <div id="nace-list" class="nace-list"></div>
+          </details>
+        </div>
+        <div class="field">
+          <label for="staff">Zaměstnanci</label>
+          <select id="staff">
+            <option value="0-5">bez omezení</option>
+            <option value="0-4" selected>do 49 (bez velkých firem)</option>
+            <option value="2-4">1–49 (mají zaměstnance)</option>
+            <option value="0-3">do 9</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="minp">Min. pravděpodobnost bez webu <output id="minp-out">0 %</output></label>
+          <input id="minp" type="range" min="0" max="95" step="5" value="0">
+        </div>
+        <label class="check"><input type="checkbox" id="hide-worked" checked> Skrýt oslovené a rezervované kolegy</label>
+        <label class="check"><input type="checkbox" id="only-enriched"> Jen ověřené (obohacené)</label>
+        <button class="btn primary wide" type="submit">Hledat</button>
+      </form>
+      <p class="muted tiny" id="data-info"></p>
+    </aside>
+
+    <section class="panel results">
+      <div class="results-head">
+        <div><strong id="result-count">—</strong> <span class="muted" id="result-note"></span></div>
+        <div class="row gap">
+          <label class="muted small-label">Ověřit top <input id="enrich-n" type="number" min="1" value="50" class="num"></label>
+          <button class="btn" id="enrich-btn" disabled>Ověřit</button>
+          <button class="btn ghost" id="export-btn" disabled>CSV</button>
+        </div>
+      </div>
+      <div id="job" class="job hidden"><div class="job-bar"><span></span></div><small></small></div>
+      <div class="table-wrap">
+        <table class="results-table">
+          <thead><tr>
+            <th title="Priorita = pravděpodobnost bez webu × živost">Priorita</th>
+            <th>Firma</th><th>Obor</th><th>Vzdál.</th>
+            <th title="Pravděpodobnost, že nemá web">Bez webu</th>
+            <th title="Odhad, že firma reálně funguje (0–100)">Živost</th>
+            <th>Stav</th>
+          </tr></thead>
+          <tbody id="results-body"><tr><td colspan="7" class="empty">Zadejte střed okruhu a hledejte.</td></tr></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel map-panel"><div id="map"></div>
+      <div class="legend"><span><i class="dot hi"></i>bez webu ≥ 80 %</span><span><i class="dot mid"></i>50–80 %</span><span><i class="dot lo"></i>&lt; 50 %</span></div>
+    </section>
+  </main>
+
+  <!-- Moje leady / tým -->
+  <main id="view-mine" class="view list-view hidden">
+    <div class="panel">
+      <h2>Moje rozpracované leady</h2>
+      <div id="mine-body"></div>
+    </div>
+  </main>
+  <main id="view-sites" class="view list-view hidden">
+    <div class="panel" id="sites-list-panel">
+      <h2>Weby pro klienty</h2>
+      <p class="muted small-text">Nový web založíte v detailu firmy tlačítkem „Připravit web“.</p>
+      <div id="sites-body"></div>
+    </div>
+  </main>
+
+  <main id="view-editor" class="view editor-view hidden">
+    <div class="ed-form panel">
+      <div class="ed-top">
+        <button class="btn ghost small" id="ed-back">← Všechny weby</button>
+        <span class="muted small-text" id="ed-saved"></span>
+      </div>
+      <h2 id="ed-title"></h2>
+      <div id="ed-status" class="ed-status"></div>
+      <form id="ed" autocomplete="off" onsubmit="return false"></form>
+    </div>
+    <aside class="ed-side">
+      <div class="panel ed-checks">
+        <div class="row gap" style="justify-content:space-between">
+          <strong id="ed-score"></strong>
+          <div class="seg small-seg">
+            <button class="seg-btn active" data-dev="mobile">Mobil</button>
+            <button class="seg-btn" data-dev="desktop">Počítač</button>
+          </div>
+        </div>
+        <div id="ed-checklist"></div>
+      </div>
+      <div class="panel ed-preview">
+        <div class="row gap" style="justify-content:space-between; margin-bottom:8px">
+          <span class="muted small-text">Náhled</span>
+          <div class="row gap"><button class="btn small ghost" id="ed-copy">Kopírovat odkaz</button><a class="btn small" id="ed-open" target="_blank" rel="noopener">Otevřít</a></div>
+        </div>
+        <div class="frame-wrap" id="frame-wrap"><iframe id="ed-frame" title="Náhled webu"></iframe></div>
+      </div>
+    </aside>
+  </main>
+
+  <main id="view-checklist" class="view list-view hidden">
+    <div class="panel checklist-panel">
+      <div class="seg" id="cl-kinds">
+        <button class="seg-btn active" data-kind="sales">Prodej – co říct klientovi</button>
+        <button class="seg-btn" data-kind="web">Jak má vypadat správný web</button>
+      </div>
+      <div id="pricelist" class="pricelist"></div>
+      <div class="cl-head">
+        <div>
+          <h2 id="cl-title"></h2>
+          <p class="muted small-text" id="cl-meta"></p>
+        </div>
+        <div class="row gap">
+          <span class="muted" id="cl-progress"></span>
+          <button class="btn" id="cl-reset">Vynulovat</button>
+          <button class="btn ghost hidden" id="cl-edit">Upravit</button>
+        </div>
+      </div>
+      <div id="cl-body"></div>
+      <div id="cl-editor" class="hidden">
+        <p class="muted small-text">Sekce začíná <code>## </code>, položka <code>- </code>, tip nebo příklad věty pod položkou <code>&gt; </code>.
+          Text v [hranatých závorkách] se zvýrazní jako „doplnit“.</p>
+        <textarea id="cl-text" spellcheck="false"></textarea>
+        <div class="row gap">
+          <button class="btn primary" id="cl-save">Uložit</button>
+          <button class="btn ghost" id="cl-cancel">Zrušit</button>
+          <span style="flex:1"></span>
+          <button class="btn ghost danger" id="cl-default">Obnovit výchozí</button>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <main id="view-team" class="view list-view hidden">
+    <div class="panel">
+      <h2>Všechny oslovené firmy</h2>
+      <div id="team-stats" class="stats"></div>
+      <div id="team-body"></div>
+    </div>
+    <div class="panel admin-panel hidden" id="products-panel">
+      <h2>Produkty a ceník</h2>
+      <p class="muted small-text">Každý produkt má základní (jednorázovou) cenu a měsíční poplatek. Aktivní produkty vidí prodejci v záložce Checklist.</p>
+      <div id="products-body"></div>
+      <h3 id="product-form-title">Přidat produkt</h3>
+      <form id="product-form" class="product-form">
+        <input type="hidden" name="id">
+        <label>Název<input name="name" placeholder="Základní web" required></label>
+        <label>Základní cena (Kč)<input name="base_price" type="number" min="0" step="100" required></label>
+        <label>Měsíční poplatek (Kč)<input name="monthly_fee" type="number" min="0" step="10" required></label>
+        <label class="span2">Krátký popis<input name="description" placeholder="Pro koho je a čím se liší"></label>
+        <label>Pořadí<input name="sort" type="number" value="0"></label>
+        <label class="span3">Co je v ceně (každá položka na nový řádek)<textarea name="includes" placeholder="Až 5 stránek&#10;Redakční systém&#10;Zápis do Google Moje firma a Firmy.cz"></textarea></label>
+        <label class="check"><input type="checkbox" name="active" checked> Aktivní (vidí ho prodejci)</label>
+        <div class="row gap"><button class="btn primary" type="submit">Uložit produkt</button>
+          <button class="btn ghost hidden" type="button" id="product-cancel">Zrušit úpravy</button></div>
+      </form>
+    </div>
+    <div class="panel admin-panel hidden" id="brand-panel">
+      <h2>Loga pro hodnocení</h2>
+      <p class="muted small-text">Nahrajte oficiální logo Googlu a Facebooku (SVG nebo PNG ze stránek brand materiálů obou firem).
+        Na webech klientů se pak u hvězdiček zobrazí logo místo slova. Bez nahraného loga se ukazuje text.</p>
+      <div class="brand-slots">
+        <div class="brand-slot" data-key="google"><strong>Google</strong><div class="bprev"></div>
+          <label class="btn small upload">Nahrát logo<input type="file" accept="image/svg+xml,image/png,image/webp" data-brand="google"></label></div>
+        <div class="brand-slot" data-key="facebook"><strong>Facebook</strong><div class="bprev"></div>
+          <label class="btn small upload">Nahrát logo<input type="file" accept="image/svg+xml,image/png,image/webp" data-brand="facebook"></label></div>
+      </div>
+    </div>
+    <div class="panel admin-panel hidden" id="admin-panel">
+      <h2>Uživatelé týmu</h2>
+      <div id="users-body"></div>
+      <h3>Přidat člena týmu</h3>
+      <form id="add-user-form" class="add-user">
+        <label>Jméno<input name="display_name" placeholder="Petr Novák" required></label>
+        <label>Uživatelské jméno<input name="username" placeholder="petr" pattern="[a-z0-9._\-]{2,32}" title="malá písmena bez diakritiky, číslice, tečka, pomlčka" required autocomplete="off"></label>
+        <div><label for="new-pw">Heslo</label>
+          <div class="row gap"><input id="new-pw" name="password" type="text" minlength="8" required autocomplete="new-password">
+          <button type="button" class="btn ghost" id="gen-pw">Vygenerovat</button></div></div>
+        <label class="check"><input type="checkbox" name="is_admin"> Admin (smí spravovat uživatele)</label>
+        <div></div>
+        <button class="btn primary" type="submit">Přidat</button>
+      </form>
+    </div>
+  </main>
+</section>
+
+<!-- Detail firmy -->
+<aside id="drawer" class="drawer hidden" aria-hidden="true">
+  <div class="drawer-inner">
+    <button class="btn ghost small close" id="drawer-close" aria-label="Zavřít">✕</button>
+    <div id="drawer-content"></div>
+  </div>
+</aside>
+<div id="toast" class="toast hidden"></div>
+
+<dialog id="pw-dialog">
+  <form id="pw-form" method="dialog">
+    <h2>Změna hesla</h2>
+    <label>Současné heslo<input type="password" name="old_password" required autocomplete="current-password"></label>
+    <label>Nové heslo (min. 8 znaků)<input type="password" name="new_password" minlength="8" required autocomplete="new-password"></label>
+    <p class="error" id="pw-error"></p>
+    <div class="row gap"><button class="btn primary" value="ok">Uložit</button><button class="btn ghost" value="cancel" formnovalidate>Zrušit</button></div>
+  </form>
+</dialog>
+
+<script src="/static/vendor/leaflet/leaflet.js"></script>
+<script src="/static/app.js"></script>
+</body>
+</html>

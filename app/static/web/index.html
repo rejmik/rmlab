@@ -1,0 +1,514 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="icon" href="/static/img/favicon.svg" type="image/svg+xml">
+<title>RM Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Rychlé weby pro malé firmy z Brandýsa nad Labem a okolí: design, základní SEO, zápis do vyhledávačů, hosting s doménou a průběžná správa.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;800;900&family=Onest:wght@400;500;600;700&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* Layout: celá stránka je pohled hledáčkem kamery – rohové závorky rámují sekce, mono popisky jsou HUD displej, červená tečka = nahrávání */
+:root {
+  --paper: #F2F2EF;
+  --panel: #FFFFFF;
+  --ink: #111111;
+  --muted: #5B5B57;
+  --line: rgba(17, 17, 17, .14);
+  --rec: #FF2D2D;
+  --rec-ink: #FFFFFF;
+  --display: "Unbounded", "Arial Black", system-ui, sans-serif;
+  --body: "Onest", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+  --max: 1200px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --paper: #0E0E0D; --panel: #171716; --ink: #F1F1EC; --muted: #A2A29C; --line: rgba(241, 241, 236, .16); --rec: #FF4141; color-scheme: dark; }
+}
+:root[data-theme="dark"] { --paper: #0E0E0D; --panel: #171716; --ink: #F1F1EC; --muted: #A2A29C; --line: rgba(241, 241, 236, .16); --rec: #FF4141; color-scheme: dark; }
+
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; scroll-padding-top: 80px; }
+body { margin: 0; background: var(--paper); color: var(--ink); font: 17px/1.6 var(--body); -webkit-font-smoothing: antialiased; overflow-x: clip; }
+a { color: inherit; }
+:focus-visible { outline: 2px solid var(--rec); outline-offset: 3px; }
+h1, h2, h3 { font-family: var(--display); line-height: 1.08; letter-spacing: -.02em; margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.wrap { max-width: var(--max); margin: 0 auto; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+.hud { font: 700 12px/1.3 var(--mono); letter-spacing: .12em; text-transform: uppercase; }
+.dot { display: inline-block; width: .7em; height: .7em; border-radius: 50%; background: var(--rec); vertical-align: -.02em; }
+.blink { animation: blink 1.2s steps(2, start) infinite; }
+@keyframes blink { to { visibility: hidden; } }
+
+/* rohové závorky hledáčku – vlastní vrstva, aby je nepřepsalo pozadí karet */
+.vf { --c: var(--ink); --l: 26px; --w: 3px; position: relative; }
+.vf::after { content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background:
+    linear-gradient(var(--c), var(--c)) left top / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--c), var(--c)) left top / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--c), var(--c)) right top / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--c), var(--c)) left bottom / var(--w) var(--l) no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / var(--l) var(--w) no-repeat,
+    linear-gradient(var(--c), var(--c)) right bottom / var(--w) var(--l) no-repeat; }
+
+/* tlačítka */
+.btn { display: inline-flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 24px; font: 600 16px var(--body); text-decoration: none; border: 2px solid var(--ink); background: var(--ink); color: var(--paper); cursor: pointer; transition: transform .15s; }
+.btn:hover { transform: translateY(-2px); }
+.btn .dot { width: 10px; height: 10px; }
+.btn.ghost { background: transparent; color: var(--ink); }
+
+/* horní lišta */
+.top { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--paper) 88%, transparent); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+.top .wrap { display: flex; align-items: center; gap: 24px; padding-block: 12px; }
+.logo-svg { display: block; height: 34px; width: auto; color: var(--ink); }
+.logo-svg .rec { fill: var(--rec); }
+.top nav { display: none; gap: 26px; margin-left: auto; }
+.top nav a { text-decoration: none; font-weight: 500; font-size: 15px; }
+.top nav a:hover { color: var(--rec); }
+.top .btn { margin-left: auto; min-height: 42px; padding: 0 16px; font-size: 14px; }
+
+/* úvod = obraz v hledáčku */
+.hero { padding-block: 24px 64px; }
+.frame { --l: 44px; --w: 4px; padding: 22px 22px 26px; min-height: min(78vh, 760px); display: grid; grid-template-rows: auto 1fr auto; gap: 28px; overflow: hidden; }
+.frame::before { content: ""; position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(var(--line), var(--line)) 33.33% 0 / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) 66.66% 0 / 1px 100% no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 33.33% / 100% 1px no-repeat,
+    linear-gradient(var(--line), var(--line)) 0 66.66% / 100% 1px no-repeat; }
+.frame > * { position: relative; }
+.hud-row { display: flex; justify-content: space-between; gap: 12px 24px; flex-wrap: wrap; color: var(--muted); }
+.hud-row .rec-on { color: var(--ink); display: inline-flex; align-items: center; gap: 10px; }
+.tc { font-variant-numeric: tabular-nums; }
+.hero-mid { align-self: center; display: grid; gap: 26px; max-width: 980px; }
+.hero h1 { font-weight: 900; font-size: clamp(36px, 7.2vw, 96px); }
+.hero h1 .r { color: var(--rec); }
+.lead { font-size: clamp(18px, 2vw, 21px); max-width: 52ch; color: var(--muted); }
+.lead b { color: var(--ink); font-weight: 600; }
+.ctas { display: flex; flex-wrap: wrap; gap: 12px; }
+.focus { position: absolute; right: 9%; top: 32%; width: 92px; height: 92px; --c: var(--rec); --l: 16px; --w: 2px; }
+.focus .af { position: absolute; left: 0; right: 0; bottom: -22px; text-align: center; font: 700 11px var(--mono); color: var(--rec); letter-spacing: .14em; }
+.strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 18px; border-top: 1px solid var(--line); padding-top: 16px; }
+.strip span { display: flex; gap: 8px; align-items: baseline; }
+.strip i { font-style: normal; color: var(--rec); }
+
+/* sekce */
+.sec { padding-block: 84px; }
+.sec-head { display: grid; gap: 14px; margin-bottom: 40px; max-width: 760px; }
+.sec-head .hud { color: var(--rec); display: flex; align-items: center; gap: 10px; }
+.sec-head h2 { font-weight: 800; font-size: clamp(30px, 4.8vw, 56px); }
+.sec-head p { color: var(--muted); font-size: 18px; max-width: 58ch; }
+
+/* co dostanete */
+.offer { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.card { background: var(--panel); padding: 28px 26px; display: grid; gap: 12px; align-content: start; min-width: 0; --c: var(--line); }
+.card:hover { --c: var(--rec); }
+.card .hud { color: var(--muted); }
+.card h3 { font-size: 22px; font-weight: 800; line-height: 1.18; }
+.card p { color: var(--muted); }
+.card.wide { background: var(--ink); color: var(--paper); --c: var(--rec); }
+.card.wide p, .card.wide .hud { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+
+/* časová osa = stopa ve střižně */
+.track { position: relative; display: grid; gap: 0; border-top: 2px solid var(--ink); }
+.clip { display: grid; grid-template-columns: 92px minmax(0, 1fr); gap: 18px; padding: 22px 0; border-bottom: 1px solid var(--line); }
+.clip .tc { font: 700 13px var(--mono); color: var(--rec); padding-top: 4px; }
+.clip h3 { font-size: 20px; font-weight: 800; margin-bottom: 6px; }
+.clip p { color: var(--muted); }
+.note { margin-top: 22px; display: flex; gap: 12px; align-items: center; font-weight: 600; }
+
+/* šablony */
+.reel { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
+.thumb { margin: 0; display: grid; gap: 10px; min-width: 0; }
+.mock { aspect-ratio: 4 / 5; max-width: 100%; border: 1px solid var(--line); overflow: hidden; display: grid; grid-template-rows: 46% 1fr; background: var(--m-bg); }
+.mock .h { background: var(--m-hero); position: relative; }
+.mock .h::after { content: ""; position: absolute; left: 10%; bottom: 14%; width: 58%; height: 12%; background: var(--m-title); }
+.mock .b { padding: 10% 10%; display: grid; gap: 8%; align-content: start; }
+.mock .b i { display: block; height: 7px; background: var(--m-line); }
+.mock .b i:nth-child(2) { width: 72%; } .mock .b i:nth-child(3) { width: 84%; }
+.mock .b i:last-child { width: 40%; height: 16px; background: var(--m-acc); margin-top: 6%; }
+.thumb figcaption { display: grid; gap: 2px; }
+.thumb figcaption b { font-weight: 600; }
+.thumb figcaption span { color: var(--muted); font-size: 14px; }
+.mock.round { border-radius: 14px; } .mock.round .h::after { border-radius: 99px; }
+.mock.pop { border: 2px solid #111; box-shadow: 4px 4px 0 #111; }
+.custom { display: grid; place-content: center; text-align: center; gap: 10px; aspect-ratio: 4 / 5; max-width: 100%; background: var(--ink); color: var(--paper); padding: 18px; --c: var(--rec); }
+.custom b { font: 800 20px/1.15 var(--display); }
+.custom span { font-size: 14px; color: color-mix(in srgb, var(--paper) 72%, transparent); }
+
+/* tým */
+.crew { display: grid; gap: 14px; align-items: start; }
+.cam { background: var(--panel); padding: 26px; display: grid; gap: 12px; align-content: start; min-width: 0; }
+.cam .label { display: flex; justify-content: space-between; color: var(--muted); }
+.cam .label b { color: var(--rec); font-weight: 700; }
+.cam h3 { font-size: 22px; font-weight: 800; line-height: 1.18; }
+.cam p { color: var(--muted); }
+.cam.dir { background: var(--ink); color: var(--paper); --c: var(--rec); }
+.cam.dir p, .cam.dir .label { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+.big-num { font: 900 clamp(48px, 7vw, 76px)/1 var(--display); color: var(--rec); }
+
+.plans { display: grid; gap: 14px; align-items: start; }
+.plan { background: var(--panel); padding: 28px 26px; display: grid; gap: 18px; min-width: 0; --c: var(--line); }
+.plan.hot { --c: var(--rec); background: var(--ink); color: var(--paper); }
+.plan .hud { color: var(--muted); display: flex; align-items: center; gap: 8px; }
+.plan.hot .hud { color: var(--rec); }
+.plan-top { display: grid; gap: 8px; }
+.plan h3 { font-size: 21px; font-weight: 800; line-height: 1.2; }
+.amount { display: grid; gap: 2px; }
+.amount b { font: 900 clamp(30px, 3.4vw, 40px)/1.05 var(--display); font-variant-numeric: tabular-nums; }
+.amount b small { font: 600 16px var(--body); }
+.amount span { color: var(--muted); font-size: 14px; }
+.plan.hot .amount span, .plan.hot li { color: color-mix(in srgb, var(--paper) 74%, transparent); }
+.plan ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; border-top: 1px solid var(--line); padding-top: 16px; }
+.plan li { padding-left: 20px; position: relative; color: var(--muted); }
+.plan li::before { content: ""; position: absolute; left: 0; top: .6em; width: 8px; height: 8px; border-radius: 50%; background: var(--rec); }
+.plan.hot .btn { background: var(--paper); color: var(--ink); border-color: var(--paper); }
+.plan .btn { justify-content: center; }
+.vat { margin-top: 20px; display: flex; gap: 12px; align-items: baseline; color: var(--muted); font-size: 15px; max-width: 70ch; }
+.vat .dot { flex: none; }
+.rm-name { font: 800 clamp(18px, 2.2vw, 22px)/1.3 var(--display); color: var(--ink) !important; }
+.rm-name b { color: var(--rec); }
+/* cena */
+.price { display: grid; gap: 14px; }
+.price > div { background: var(--panel); padding: 26px; display: grid; gap: 8px; min-width: 0; }
+.price .k { font: 800 24px var(--display); }
+.price p { color: var(--muted); }
+
+/* kontakt */
+.contact { background: var(--ink); color: var(--paper); }
+.contact .sec-head .hud { color: var(--rec); }
+.contact .sec-head p { color: color-mix(in srgb, var(--paper) 72%, transparent); }
+.c-grid { display: grid; gap: 34px; }
+.c-lines { display: grid; gap: 18px; align-content: start; }
+.c-line { display: grid; gap: 4px; }
+.c-line .hud { color: color-mix(in srgb, var(--paper) 60%, transparent); }
+.c-line a, .c-line span.v { font: 800 clamp(22px, 3.4vw, 34px)/1.2 var(--display); text-decoration: none; overflow-wrap: anywhere; user-select: all; }
+.c-line a:hover { color: var(--rec); }
+form { display: grid; gap: 14px; background: var(--paper); color: var(--ink); padding: 26px; --c: var(--rec); }
+label { display: grid; gap: 6px; font-weight: 600; font-size: 15px; }
+input, textarea, select { font: 16px var(--body); padding: 12px 14px; border: 1.5px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 0; width: 100%; }
+input:focus, textarea:focus, select:focus { outline: none; border-color: var(--ink); }
+textarea { min-height: 120px; resize: vertical; }
+.form-row { display: grid; gap: 14px; }
+.form-msg { font-weight: 600; min-height: 1.4em; }
+.form-msg span { user-select: all; }
+
+footer { padding-block: 34px; border-top: 1px solid var(--line); color: var(--muted); font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; gap: 14px 30px; align-items: center; justify-content: space-between; }
+footer .logo-svg { height: 28px; }
+
+@media (min-width: 720px) {
+  .strip { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .offer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reel { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .crew { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .price { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .plans { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .form-row { grid-template-columns: 1fr 1fr; }
+  .clip { grid-template-columns: 140px minmax(0, 1fr); }
+}
+@media (min-width: 1000px) {
+  .top nav { display: flex; } .top .btn { margin-left: 8px; }
+  .frame { padding: 30px 36px 32px; }
+  .offer { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .offer .card.wide { grid-column: span 1; }
+  .track { grid-template-columns: repeat(4, minmax(0, 1fr)); border-top: 0; }
+  .clip { grid-template-columns: 1fr; border-bottom: 0; border-top: 2px solid var(--ink); padding-right: 22px; gap: 10px; }
+  .c-grid { grid-template-columns: 1fr 1.1fr; gap: 64px; }
+}
+@media (max-width: 719px) { .focus { display: none; } }
+@media (prefers-reduced-motion: reduce) { .blink { animation: none; } html { scroll-behavior: auto; } .btn:hover { transform: none; } }
+</style>
+</head>
+<body>
+
+
+<header class="top">
+  <div class="wrap">
+    <a href="#top" aria-label="RM Lab – úvod"><svg class="logo-svg" viewBox="0 0 346 120" role="img" aria-label="RM Lab"><path d="M16 40V16H40M80 16H104V40M104 80V104H80M40 104H16V80" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="square"/><path d="M34.875 60.13H42.435Q43.575 60.13 44.205 59.59Q44.834999999999994 59.05 44.834999999999994 58.03Q44.834999999999994 57.01 44.205 56.47Q43.575 55.93 42.435 55.93H33.795L37.275 52.45V73.0H29.535V50.5H43.635Q46.334999999999994 50.5 48.36 51.445Q50.385 52.39 51.51 54.07Q52.635 55.75 52.635 58.03Q52.635 60.25 51.51 61.945Q50.385 63.64 48.36 64.57Q46.334999999999994 65.5 43.635 65.5H34.875ZM37.515 62.47H46.065L53.535 73.0H44.685ZM90.465 50.5V73.0H83.115V53.41L84.525 53.59L76.965 73.0H69.315L61.755 53.68L63.165 53.47V73.0H55.815V50.5H67.785L74.505 68.83H71.83500000000001L78.495 50.5Z" fill="currentColor"/><circle class="rec" cx="88" cy="30" r="6"/><path d="M149.52 58.84H159.6Q161.12 58.84 161.96 58.120000000000005Q162.8 57.4 162.8 56.04Q162.8 54.68 161.96 53.959999999999994Q161.12 53.239999999999995 159.6 53.239999999999995H148.08L152.72 48.599999999999994V76.0H142.4V46.0H161.2Q164.8 46.0 167.5 47.26Q170.2 48.519999999999996 171.7 50.76Q173.2 53.0 173.2 56.04Q173.2 59.0 171.7 61.26Q170.2 63.519999999999996 167.5 64.75999999999999Q164.8 66.0 161.2 66.0H149.52ZM153.04 61.96H164.44L174.4 76.0H162.6ZM223.64 46.0V76.0H213.84V49.879999999999995L215.72 50.120000000000005L205.64 76.0H195.44L185.35999999999999 50.239999999999995L187.23999999999998 49.96V76.0H177.44V46.0H193.39999999999998L202.35999999999999 70.44H198.79999999999998L207.68 46.0ZM248.2 46.0V71.44L243.56 66.8H265.88V76.0H237.88V46.0ZM276.23999999999995 70.96V62.76H296.67999999999995V70.96ZM293.52 46.0 306.67999999999995 76.0H295.67999999999995L285.32 50.56H287.96L277.59999999999997 76.0H266.59999999999997L279.76 46.0ZM330.71999999999997 61.44 331.5199999999999 59.6Q334.91999999999996 59.72 337.19999999999993 60.68Q339.47999999999996 61.64 340.61999999999995 63.339999999999996Q341.75999999999993 65.03999999999999 341.75999999999993 67.4Q341.75999999999993 69.84 340.65999999999997 71.80000000000001Q339.55999999999995 73.76 337.31999999999994 74.88Q335.0799999999999 76.0 331.71999999999997 76.0H308.15999999999997L310.43999999999994 60.6L308.15999999999997 46.0H330.87999999999994Q335.03999999999996 46.0 337.4 47.94Q339.75999999999993 49.879999999999995 339.75999999999993 53.32Q339.75999999999993 55.28 338.87999999999994 57.0Q337.99999999999994 58.72 336.02 59.9Q334.03999999999996 61.08 330.71999999999997 61.44ZM318.23999999999995 73.76 314.31999999999994 69.16H328.43999999999994Q329.75999999999993 69.16 330.52 68.46000000000001Q331.28 67.76 331.28 66.56Q331.28 65.48 330.53999999999996 64.72Q329.79999999999995 63.96 328.35999999999996 63.96H316.5199999999999V57.239999999999995H326.8399999999999Q327.87999999999994 57.239999999999995 328.5799999999999 56.599999999999994Q329.28 55.96 329.28 54.96Q329.28 54.04 328.64 53.44Q327.99999999999994 52.84 326.8399999999999 52.84H314.35999999999996L318.23999999999995 48.239999999999995L320.28 60.6Z" fill="currentColor"/></svg></a>
+    <nav aria-label="Hlavní menu">
+      <a href="#co-umime">Co umíme</a>
+      <a href="#jak">Jak to probíhá</a>
+      <a href="#sablony">Šablony</a>
+      <a href="#kdo">Kdo jsme</a>
+      <a href="#cena">Cena</a>
+    </nav>
+    <a class="btn" href="#kontakt"><span class="dot"></span>Chci web</a>
+  </div>
+</header>
+
+<main id="top">
+  <section class="hero">
+    <div class="wrap">
+      <div class="frame vf">
+        <div class="hud-row hud">
+          <span class="rec-on"><span class="dot blink"></span>REC <span class="tc" id="tc">00:00:00:00</span></span>
+          <span>Brandýs n. L. · Stará Boleslav · okolí</span>
+        </div>
+        <div class="hero-mid">
+          <h1>Web pro vaši firmu. Hotový za pár dní<span class="r">.</span></h1>
+          <p class="lead">Nafotíme a natočíme podklady, web navrhneme a postavíme, <b>zapíšeme ho do Googlu a Seznamu</b>, zařídíme <b>hosting i doménu</b> a pak se o něj <b>dál staráme</b>. Vy se věnujete zákazníkům.</p>
+          <div class="ctas">
+            <a class="btn" href="#kontakt"><span class="dot"></span>Chci nezávazný návrh</a>
+            <a class="btn ghost" href="#jak">Jak to probíhá</a>
+          </div>
+        </div>
+        <span class="focus vf" aria-hidden="true"><span class="af">AF</span></span>
+        <div class="strip hud">
+          <span><i>●</i>Foto, video, design</span>
+          <span><i>●</i>SEO + měření</span>
+          <span><i>●</i>Hosting + doména</span>
+          <span><i>●</i>Průběžná správa</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="co-umime">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot"></span>Co dostanete</span>
+        <h2>Všechno, co web potřebuje. Od jednoho týmu.</h2>
+        <p>Nemusíte shánět grafika, programátora, hosting a někoho, kdo to pak bude upravovat. Řešíte to jen s námi.</p>
+      </div>
+      <div class="offer">
+        <article class="card vf">
+          <span class="hud">Design</span>
+          <h3>Moderní web na míru vaší firmě</h3>
+          <p>Hezký a přehledný na mobilu i počítači. Návrh vám ukážeme dřív, než web postavíme.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">SEO + měření</span>
+          <h3>Aby vás lidé našli. A vy věděli kolik</h3>
+          <p>Správné nadpisy, popisky a rychlé načítání pro vyhledávače. Nasadíme Google Analytics, takže uvidíte, kolik lidí přišlo a kolik vám zavolalo.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">Vyhledávače</span>
+          <h3>Zápis do Googlu a Seznamu</h3>
+          <p>Web přihlásíme do vyhledávačů a pomůžeme s profilem na Mapách Google a na Firmy.cz.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">Hosting + doména</span>
+          <h3>Web běží, adresa je vaše</h3>
+          <p>Vybereme a zaregistrujeme doménu, zajistíme hosting a zabezpečení. Doména patří vám.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">Správa</span>
+          <h3>Změny vyřídíme za vás</h3>
+          <p>Nový ceník, otevírací doba nebo akce? Napíšete nám a my to vyřešíme. Až 2 hodiny práce měsíčně máte v ceně.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">Foto + video</span>
+          <h3>Nafotíme a natočíme podklady</h3>
+          <p>Přijedeme za vámi a nafotíme provozovnu, tým i práci. Krátké video do úvodu webu nebo na sociální sítě.</p>
+        </article>
+        <article class="card vf">
+          <span class="hud">Redakční systém</span>
+          <h3>Texty si upravíte sami</h3>
+          <p>Umíme web napojit na redakční systém. Ceník, novinky nebo fotky pak změníte sami, bez programování.</p>
+        </article>
+        <article class="card vf wide">
+          <span class="hud">Na míru</span>
+          <h3>Potřebujete něco navíc?</h3>
+          <p>Rezervace, e-shop nebo jiné funkce probereme spolu a najdeme řešení, které dává smysl.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="jak">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot"></span>Jak to probíhá</span>
+        <h2>Čtyři kroky od schůzky ke spuštění</h2>
+        <p>Každý krok víte, co se děje. Nic nespouštíme, dokud to neschválíte.</p>
+      </div>
+      <div class="track">
+        <div class="clip"><span class="tc">00:01 · Schůzka</span><div><h3>Popovídáme si</h3><p>Řeknete nám, co děláte a pro koho. Probereme, co má web umět.</p></div></div>
+        <div class="clip"><span class="tc">00:02 · Natáčení</span><div><h3>Nafotíme a natočíme</h3><p>Přijedeme k vám a pořídíme fotky a video, ze kterých postavíme design webu.</p></div></div>
+        <div class="clip"><span class="tc">00:03 · Návrh</span><div><h3>Ukážeme návrh a postavíme web</h3><p>Vybereme šablonu nebo navrhneme vlastní vzhled. Po vašem schválení doplníme texty, ceník a základní SEO.</p></div></div>
+        <div class="clip"><span class="tc">00:04 · Spuštění</span><div><h3>Pustíme ho do světa</h3><p>Doména, hosting, zápis do Googlu a Seznamu. Od té chvíle se o web staráme.</p></div></div>
+      </div>
+      <p class="note"><span class="dot blink"></span>Díky připraveným šablonám bývá web hotový za pár dní od dodání podkladů.</p>
+    </div>
+  </section>
+
+  <section class="sec" id="sablony">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot"></span>Šablony i na míru</span>
+        <h2>7+ otestovaných šablon. A když nestačí, přizpůsobíme se.</h2>
+        <p>Pro kadeřnictví, kavárny, restaurace a další malé firmy máme přes sedm vyzkoušených šablon. Díky nim je web rychle hotový a splňuje vše podstatné. Barvy, písma i obsah upravíme podle vás, a když chcete něco úplně jiného, navrhneme web na míru.</p>
+      </div>
+      <div class="reel">
+        <figure class="thumb"><div class="mock" style="--m-bg:#FBFAF7;--m-hero:linear-gradient(135deg,#1F5B45,#18211D);--m-title:#fff;--m-line:#d9dcd8;--m-acc:#1F5B45"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Rovná</b><span>Restaurace, bistro</span></figcaption></figure>
+        <figure class="thumb"><div class="mock round" style="--m-bg:#EEEBF2;--m-hero:linear-gradient(135deg,#6B2D5C,#3a1f36);--m-title:#E9C9D3;--m-line:#d8d2de;--m-acc:#6B2D5C"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Oblá</b><span>Kadeřnictví, salon</span></figcaption></figure>
+        <figure class="thumb"><div class="mock" style="--m-bg:#EEEBF2;--m-hero:#cfc6d6;--m-title:#1E1A24;--m-line:#fff;--m-acc:#6B2D5C"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Vizitka</b><span>Jedna stránka, málo fotek</span></figcaption></figure>
+        <figure class="thumb"><div class="mock pop" style="--m-bg:#FFF8E7;--m-hero:#FFE14D;--m-title:#111;--m-line:#111;--m-acc:#FF7AB6"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Pop</b><span>Pro mladší zákazníky</span></figcaption></figure>
+        <figure class="thumb"><div class="mock" style="--m-bg:#fff;--m-hero:#f5f5f7;--m-title:#1d1d1f;--m-line:#e6e6ea;--m-acc:#1d1d1f"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Luxus</b><span>Čistá, bílá, prémiová</span></figcaption></figure>
+        <figure class="thumb"><div class="mock" style="--m-bg:#fff;--m-hero:linear-gradient(90deg,#9a9a9a 55%,#FFE500 55%);--m-title:#0d0d0d;--m-line:#0d0d0d;--m-acc:#FFE500"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Urban</b><span>Černobílá se žlutou</span></figcaption></figure>
+        <figure class="thumb"><div class="mock" style="--m-bg:#fff;--m-hero:linear-gradient(160deg,#E5161B,#FF8A1F,#FFB321);--m-title:#fff;--m-line:#eee;--m-acc:#F5C428"><div class="h"></div><div class="b"><i></i><i></i><i></i><i></i></div></div><figcaption><b>Barevný štětec</b><span>Výrazná a přátelská</span></figcaption></figure>
+        <div class="custom vf"><b>Na míru</b><span>Vlastní vzhled podle vaší značky</span></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="kdo">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot"></span>Kdo jsme</span>
+        <h2>Dva studenti gymnázia. A zkušený dohled.</h2>
+        <p class="rm-name">RM = <b>R</b>ejmon + <b>M</b>ildorf</p>
+        <p>Baví nás technologie, focení, video a umělá inteligence. Oba umíme web navrhnout, postavit, nafotit i natočit. Matyáš k tomu režíruje, Tonda přidává analytický pohled. Na každý projekt dohlíží člověk, který v marketingu dělá přes dvacet let.</p>
+      </div>
+      <div class="crew">
+        <article class="cam vf">
+          <div class="label hud"><span>Kamera A · režie</span><b>● REC</b></div>
+          <h3>Matyáš Rejmon</h3>
+          <p>Navrhuje a staví weby, fotí a točí. Navíc režíruje: hlídá, aby web i natáčení držely jeden směr a výsledek dával smysl.</p>
+        </article>
+        <article class="cam vf">
+          <div class="label hud"><span>Kamera B · analýza</span><b>● REC</b></div>
+          <h3>Antonín Mildorf</h3>
+          <p>Navrhuje a staví weby, fotí a točí. Navíc přidává analytický pohled: co lidé hledají, jak vás najdou a co na webu funguje.</p>
+        </article>
+        <article class="cam vf dir">
+          <div class="label hud"><span>Producent</span><span>Dohled</span></div>
+          <span class="big-num">20+</span>
+          <h3>let v marketingu</h3>
+          <p>Táta jednoho z nás. Za sebou má stovky online projektů včetně zakázek za miliony a hlídá, aby každý web plnil svůj účel.</p>
+        </article>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" id="cena">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot"></span>Kolik to stojí</span>
+        <h2>Nízký vstup. Pak jen měsíční paušál.</h2>
+        <p>Za výrobu webu zaplatíte jednou. Měsíční paušál pokrývá hosting, doménu, zabezpečení a naši péči: když něco potřebujete, řešíme to. Až 2 hodiny práce měsíčně máte v ceně, a když nám něco zabere o chvíli déle, nehádáme se o minuty.</p>
+      </div>
+      <div class="plans">
+        <article class="plan vf">
+          <div class="plan-top"><span class="hud">Start</span><h3>Web do 3 stránek</h3></div>
+          <div class="amount"><b>4 990 Kč</b><span>jednorázově</span></div>
+          <div class="amount"><b>+ 590 Kč<small> / měsíc</small></b><span>měsíční paušál</span></div>
+          <ul>
+            <li>Web do 3 stránek s designem a základním SEO</li>
+            <li>Zápis do Googlu a Seznamu</li>
+            <li>Měření návštěvnosti v Google Analytics</li>
+            <li>Hosting, doména a zabezpečení</li>
+            <li>Vaše požadavky až 2 hodiny měsíčně</li>
+          </ul>
+          <a class="btn ghost" href="#kontakt">Chci Start</a>
+        </article>
+        <article class="plan vf hot">
+          <div class="plan-top"><span class="hud"><span class="dot blink"></span>Plus</span><h3>Web 3–5 stránek + redakční systém</h3></div>
+          <div class="amount"><b>8 990 Kč</b><span>jednorázově</span></div>
+          <div class="amount"><b>+ 790 Kč<small> / měsíc</small></b><span>měsíční paušál</span></div>
+          <ul>
+            <li>Web 3–5 stránek s designem a základním SEO</li>
+            <li>Napojení na redakční systém, texty upravíte sami</li>
+            <li>Zápis do Googlu a Seznamu</li>
+            <li>Měření návštěvnosti v Google Analytics</li>
+            <li>Hosting, doména a zabezpečení</li>
+            <li>Vaše požadavky až 2 hodiny měsíčně</li>
+          </ul>
+          <a class="btn" href="#kontakt"><span class="dot"></span>Chci Plus</a>
+        </article>
+        <article class="plan vf">
+          <div class="plan-top"><span class="hud">Na míru</span><h3>Větší web nebo speciální funkce</h3></div>
+          <div class="amount"><b>Dohodou</b><span>cenu řekneme po první schůzce</span></div>
+          <ul>
+            <li>Rozsah podle vašeho zadání</li>
+            <li>Rezervace, e-shop, napojení na další služby</li>
+            <li>Vlastní design podle vaší značky</li>
+          </ul>
+          <a class="btn ghost" href="#kontakt">Probrat zadání</a>
+        </article>
+      </div>
+      <p class="vat"><span class="dot"></span>Nevyčerpané hodiny se do dalšího měsíce nepřevádějí. Ceny jsou konečné. Pokud jste plátce DPH, fakturujeme s DPH a vy si ji odečtete, takže vás web stojí stejně.</p>
+    </div>
+  </section>
+
+  <section class="sec contact" id="kontakt">
+    <div class="wrap">
+      <div class="sec-head">
+        <span class="hud"><span class="dot blink"></span>Natáčíme další web</span>
+        <h2>Napište nám. Ozveme se do druhého dne.</h2>
+        <p>Pár vět o vaší firmě stačí. První schůzka a návrh jsou nezávazné.</p>
+      </div>
+      <div class="c-grid">
+        <div class="c-lines">
+          <div class="c-line"><span class="hud">Telefon</span><a href="tel:+420608696854">+420 608 696 854</a></div>
+          <div class="c-line"><span class="hud">E-mail</span><a href="mailto:rejmil.web@gmail.com">rejmil.web@gmail.com</a></div>
+          <div class="c-line"><span class="hud">Instagram</span><a href="https://www.instagram.com/rejmilwebdesign/" target="_blank" rel="noopener">@rejmilwebdesign</a></div>
+        </div>
+        <form class="vf" id="poptavka" novalidate>
+          <div class="form-row">
+            <label for="f-jmeno">Jméno<input id="f-jmeno" name="jmeno" autocomplete="name" required></label>
+            <label for="f-firma">Firma<input id="f-firma" name="firma" autocomplete="organization" required></label>
+          </div>
+          <label for="f-kontakt">Telefon nebo e-mail<input id="f-kontakt" name="kontakt" required></label>
+          <label for="f-co">S čím pomůžeme
+            <select id="f-co" name="co">
+              <option>Nový web</option>
+              <option>Předělat současný web</option>
+              <option>Jen hosting, doménu a správu</option>
+              <option>Něco jiného</option>
+            </select>
+          </label>
+          <label for="f-zprava">Pár slov o firmě<textarea id="f-zprava" name="zprava" placeholder="Např. kadeřnictví v Brandýse, nemáme web, chtěli bychom ceník a objednávky po telefonu."></textarea></label>
+          <button class="btn" type="submit"><span class="dot"></span>Odeslat poptávku</button>
+          <p class="form-msg" id="form-msg" role="status"></p>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <svg class="logo-svg" viewBox="0 0 346 120" role="img" aria-label="RM Lab"><path d="M16 40V16H40M80 16H104V40M104 80V104H80M40 104H16V80" stroke="currentColor" stroke-width="7" fill="none" stroke-linecap="square"/><path d="M34.875 60.13H42.435Q43.575 60.13 44.205 59.59Q44.834999999999994 59.05 44.834999999999994 58.03Q44.834999999999994 57.01 44.205 56.47Q43.575 55.93 42.435 55.93H33.795L37.275 52.45V73.0H29.535V50.5H43.635Q46.334999999999994 50.5 48.36 51.445Q50.385 52.39 51.51 54.07Q52.635 55.75 52.635 58.03Q52.635 60.25 51.51 61.945Q50.385 63.64 48.36 64.57Q46.334999999999994 65.5 43.635 65.5H34.875ZM37.515 62.47H46.065L53.535 73.0H44.685ZM90.465 50.5V73.0H83.115V53.41L84.525 53.59L76.965 73.0H69.315L61.755 53.68L63.165 53.47V73.0H55.815V50.5H67.785L74.505 68.83H71.83500000000001L78.495 50.5Z" fill="currentColor"/><circle class="rec" cx="88" cy="30" r="6"/><path d="M149.52 58.84H159.6Q161.12 58.84 161.96 58.120000000000005Q162.8 57.4 162.8 56.04Q162.8 54.68 161.96 53.959999999999994Q161.12 53.239999999999995 159.6 53.239999999999995H148.08L152.72 48.599999999999994V76.0H142.4V46.0H161.2Q164.8 46.0 167.5 47.26Q170.2 48.519999999999996 171.7 50.76Q173.2 53.0 173.2 56.04Q173.2 59.0 171.7 61.26Q170.2 63.519999999999996 167.5 64.75999999999999Q164.8 66.0 161.2 66.0H149.52ZM153.04 61.96H164.44L174.4 76.0H162.6ZM223.64 46.0V76.0H213.84V49.879999999999995L215.72 50.120000000000005L205.64 76.0H195.44L185.35999999999999 50.239999999999995L187.23999999999998 49.96V76.0H177.44V46.0H193.39999999999998L202.35999999999999 70.44H198.79999999999998L207.68 46.0ZM248.2 46.0V71.44L243.56 66.8H265.88V76.0H237.88V46.0ZM276.23999999999995 70.96V62.76H296.67999999999995V70.96ZM293.52 46.0 306.67999999999995 76.0H295.67999999999995L285.32 50.56H287.96L277.59999999999997 76.0H266.59999999999997L279.76 46.0ZM330.71999999999997 61.44 331.5199999999999 59.6Q334.91999999999996 59.72 337.19999999999993 60.68Q339.47999999999996 61.64 340.61999999999995 63.339999999999996Q341.75999999999993 65.03999999999999 341.75999999999993 67.4Q341.75999999999993 69.84 340.65999999999997 71.80000000000001Q339.55999999999995 73.76 337.31999999999994 74.88Q335.0799999999999 76.0 331.71999999999997 76.0H308.15999999999997L310.43999999999994 60.6L308.15999999999997 46.0H330.87999999999994Q335.03999999999996 46.0 337.4 47.94Q339.75999999999993 49.879999999999995 339.75999999999993 53.32Q339.75999999999993 55.28 338.87999999999994 57.0Q337.99999999999994 58.72 336.02 59.9Q334.03999999999996 61.08 330.71999999999997 61.44ZM318.23999999999995 73.76 314.31999999999994 69.16H328.43999999999994Q329.75999999999993 69.16 330.52 68.46000000000001Q331.28 67.76 331.28 66.56Q331.28 65.48 330.53999999999996 64.72Q329.79999999999995 63.96 328.35999999999996 63.96H316.5199999999999V57.239999999999995H326.8399999999999Q327.87999999999994 57.239999999999995 328.5799999999999 56.599999999999994Q329.28 55.96 329.28 54.96Q329.28 54.04 328.64 53.44Q327.99999999999994 52.84 326.8399999999999 52.84H314.35999999999996L318.23999999999995 48.239999999999995L320.28 60.6Z" fill="currentColor"/></svg>
+    <span>Weby pro malé firmy · Brandýs nad Labem, Stará Boleslav a okolí</span>
+    <span>© 2026 RM Lab</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  // běžící časový kód jako na kameře
+  var tc = document.getElementById("tc"), t0 = Date.now();
+  var still = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function tick() {
+    var ms = Date.now() - t0, s = Math.floor(ms / 1000);
+    tc.textContent = pad(Math.floor(s / 3600)) + ":" + pad(Math.floor(s / 60) % 60) + ":" + pad(s % 60) + ":" + pad(Math.floor(ms / 40) % 25);
+  }
+  if (tc && !still) setInterval(tick, 40);
+
+  // poptávka: připraví e-mail se vším vyplněným
+  var f = document.getElementById("poptavka"), msg = document.getElementById("form-msg");
+  f.addEventListener("submit", function (ev) {
+    ev.preventDefault();
+    var miss = [].filter.call(f.querySelectorAll("[required]"), function (i) { return !i.value.trim(); });
+    if (miss.length) { msg.textContent = "Vyplňte prosím jméno, firmu a kontakt, ať se vám můžeme ozvat."; miss[0].focus(); return; }
+    var d = new FormData(f), body = "Jméno: " + d.get("jmeno") + "\nFirma: " + d.get("firma") + "\nKontakt: " + d.get("kontakt") +
+      "\nCo potřebuji: " + d.get("co") + "\n\n" + (d.get("zprava") || "");
+    var href = "mailto:rejmil.web@gmail.com?subject=" + encodeURIComponent("Poptávka webu – " + d.get("firma")) + "&body=" + encodeURIComponent(body);
+    msg.innerHTML = "";
+    msg.append("Otevíráme váš e-mail s připravenou zprávou. Kdyby se neotevřel, napište nám na ");
+    var s = document.createElement("span"); s.textContent = "rejmil.web@gmail.com"; msg.append(s, ".");
+    window.location.href = href;
+  });
+})();
+</script>
+
+</body>
+</html>
