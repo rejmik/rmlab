@@ -17,11 +17,11 @@ import sys
 from pathlib import Path
 
 from app.auth import hash_password
-from app.config import BASE_DIR
+from app.config import DB_PATH, BASE_DIR
 from app.db import connect, init_db
 from app import importers
 
-RAW = BASE_DIR / "data" / "raw"
+RAW = DB_PATH.parent / "raw"
 
 
 def _ask_password():

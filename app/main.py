@@ -11,7 +11,8 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import ai, enrich, places, sites
 from .auth import hash_password, secret_key, verify_password
-from .config import BASE_DIR, CLAIM_DAYS, ENRICH_MAX
+from .config import (ADMIN_NAME, ADMIN_PASSWORD, ADMIN_USER, AUTO_IMPORT, BASE_DIR, CLAIM_DAYS, ENRICH_MAX,
+                     HTTPS_ONLY, LOGIN_MAX_FAILS, ROOT_REDIRECT)
 from . import checklist as checklist_mod
 from .db import connect, get_meta, init_db, set_meta
 from .geo import bbox, haversine_km
@@ -42,13 +43,71 @@ CHANNELS = {"phone": "Telefon", "email": "E-mail", "visit": "Osobně", "other": 
 
 app = FastAPI(title="RM Lab", docs_url=None, redoc_url=None)
 app.add_middleware(SessionMiddleware, secret_key=secret_key(), max_age=60 * 60 * 24 * 30,
-                   same_site="lax", https_only=False)
+                   same_site="lax", https_only=HTTPS_ONLY)
 app.mount("/static", StaticFiles(directory=STATIC), name="static")
 
 
 @app.on_event("startup")
 def _startup():
     init_db()
+    with connect() as conn:
+        # první admin z proměnných prostředí (na serveru není kde spustit manage.py adduser)
+        if ADMIN_USER and ADMIN_PASSWORD and not conn.execute("SELECT 1 FROM users LIMIT 1").fetchone():
+            conn.execute("INSERT INTO users(username, display_name, password_hash, is_admin) VALUES (?,?,?,1)",
+                         (ADMIN_USER.strip().lower(), ADMIN_NAME or ADMIN_USER, hash_password(ADMIN_PASSWORD)))
+            print(f"[rmlab] založen admin {ADMIN_USER}", flush=True)
+        need_data = AUTO_IMPORT and conn.execute("SELECT COUNT(*) FROM firms").fetchone()[0] < 1000
+    if need_data:
+        import threading
+        threading.Thread(target=_auto_import, daemon=True).start()
+
+
+IMPORT_STATE = {"running": False, "step": "", "error": ""}
+
+
+def _auto_import():
+    """Stáhne a naimportuje RES (firmy) a RÚIAN (souřadnice adres). Trvá desítky minut."""
+    from .config import DB_PATH
+    from . import importers
+    raw = DB_PATH.parent / "raw"
+    IMPORT_STATE.update(running=True, error="")
+    try:
+        IMPORT_STATE["step"] = "Stahuji registr ekonomických subjektů (RES)…"
+        res = importers.download_res(raw)
+        IMPORT_STATE["step"] = "Stahuji adresní místa (RÚIAN)…"
+        ruian = importers.download_ruian(raw)
+        IMPORT_STATE["step"] = "Importuji firmy…"
+        importers.import_res(res)
+        IMPORT_STATE["step"] = "Importuji souřadnice adres…"
+        importers.import_ruian(ruian)
+        IMPORT_STATE["step"] = "Hotovo"
+    except Exception as ex:  # noqa: BLE001 – stav se ukáže v aplikaci
+        IMPORT_STATE["error"] = str(ex)
+        print(f"[rmlab] import selhal: {ex}", flush=True)
+    finally:
+        IMPORT_STATE["running"] = False
+
+
+@app.get("/healthz", include_in_schema=False)
+def healthz():
+    return {"ok": True}
+
+
+# omezení pokusů o přihlášení (v paměti, na jednu instanci stačí)
+_FAILS: dict = {}
+
+
+def _client_ip(request: Request) -> str:
+    # poslední položku přidává proxy hostingu – první si může klient podvrhnout
+    fwd = request.headers.get("x-forwarded-for", "")
+    return (fwd.split(",")[-1].strip() if fwd else (request.client.host if request.client else "?"))
+
+
+def _too_many(ip: str) -> bool:
+    now = dt.datetime.now().timestamp()
+    recent = [t for t in _FAILS.get(ip, []) if now - t < 15 * 60]
+    _FAILS[ip] = recent
+    return len(recent) >= LOGIN_MAX_FAILS
 
 
 def _now():
@@ -88,7 +147,10 @@ class LoginIn(BaseModel):
 
 @app.get("/", include_in_schema=False)
 def public_web():
-    """Veřejný web RM Lab."""
+    """Veřejný web RM Lab (na doméně CRM lze přesměrovat proměnnou LF_ROOT_REDIRECT)."""
+    if ROOT_REDIRECT:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(ROOT_REDIRECT)
     return FileResponse(STATIC / "web" / "index.html")
 
 
@@ -111,9 +173,14 @@ def robots():
 
 @app.post("/api/login")
 def login(body: LoginIn, request: Request, conn=Depends(db)):
+    ip = _client_ip(request)
+    if _too_many(ip):
+        raise HTTPException(429, "Příliš mnoho pokusů. Zkuste to znovu za 15 minut.")
     row = conn.execute("SELECT * FROM users WHERE username=?", (body.username.strip().lower(),)).fetchone()
     if not row or not verify_password(body.password, row["password_hash"]):
+        _FAILS.setdefault(ip, []).append(dt.datetime.now().timestamp())
         raise HTTPException(401, "Špatné jméno nebo heslo")
+    _FAILS.pop(ip, None)
     if not row["active"]:
         raise HTTPException(403, "Účet je deaktivovaný")
     request.session["uid"] = row["id"]
@@ -135,6 +202,7 @@ def me(user=Depends(current_user)):
 def meta(user=Depends(current_user), conn=Depends(db)):
     users = [dict(r) for r in conn.execute("SELECT id, display_name FROM users WHERE active=1 ORDER BY display_name")]
     return {
+        "import": dict(IMPORT_STATE),
         "demo": enrich.is_demo(conn),
         "google": places.enabled() or enrich.is_demo(conn),
         "firms": conn.execute("SELECT COUNT(*) FROM firm_geo").fetchone()[0],

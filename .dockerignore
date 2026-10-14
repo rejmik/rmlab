@@ -3,3 +3,9 @@ data/
 .venv/
 __pycache__/
 .pytest_cache/
+.git
+.github
+deploy
+tests
+*.bak
+start.command

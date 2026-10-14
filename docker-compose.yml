@@ -5,5 +5,5 @@ services:
     ports:
       - "8000:8000"          # za reverzní proxy změňte na "127.0.0.1:8000:8000"
     volumes:
-      - ./data:/srv/data      # databáze, stažená data, tajný klíč
+      - ./data:/data          # databáze, stažená data, tajný klíč
     restart: unless-stopped

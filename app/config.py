@@ -37,3 +37,17 @@ GOOGLE_CONCURRENCY = int(os.environ.get("LF_GOOGLE_CONCURRENCY", "4"))
 MASS_ADDRESS_THRESHOLD = int(os.environ.get("LF_MASS_ADDRESS", "15"))
 
 USER_AGENT = "RMLab/0.1 (internal tool)"  # HTTP hlavičky musí být ASCII
+
+# --- provoz na veřejném serveru (Railway apod.) ---
+# 1 = přihlašovací cookie jen přes HTTPS (na serveru zapnout, lokálně nechat 0)
+HTTPS_ONLY = os.environ.get("LF_HTTPS", "0") == "1"
+# Kam přesměrovat „/“ (např. /nase-crm/ na doméně CRM). Prázdné = na „/“ je veřejný web.
+ROOT_REDIRECT = os.environ.get("LF_ROOT_REDIRECT", "")
+# První admin – založí se při startu, pokud v databázi ještě nikdo není
+ADMIN_USER = os.environ.get("LF_ADMIN_USER", "")
+ADMIN_PASSWORD = os.environ.get("LF_ADMIN_PASSWORD", "")
+ADMIN_NAME = os.environ.get("LF_ADMIN_NAME", "")
+# 1 = když databáze nemá reálná data firem, stáhne a naimportuje RES + RÚIAN na pozadí
+AUTO_IMPORT = os.environ.get("LF_AUTO_IMPORT", "0") == "1"
+# Omezení pokusů o přihlášení: max. počet neúspěchů z jedné IP za 15 minut
+LOGIN_MAX_FAILS = int(os.environ.get("LF_LOGIN_MAX_FAILS", "10"))

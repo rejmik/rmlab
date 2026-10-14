@@ -51,6 +51,7 @@ async function boot() {
   $("#brand-panel").classList.toggle("hidden", !state.me.is_admin);
   state.meta = await api("/api/meta");
   $("#demo-badge").classList.toggle("hidden", !state.meta.demo);
+  showImport(state.meta.import);
   $("#data-info").textContent = `${state.meta.firms.toLocaleString("cs-CZ")} firem s polohou · data RES: ${state.meta.res_imported_at || "neimportováno"}` +
     (state.meta.google ? "" : " · Google Places není nastaven");
   $("#enrich-n").max = state.meta.enrich_max;
@@ -782,6 +783,18 @@ function tplExtra(d) {
     h += listRows("stats", t === "7" ? "c3" : "c2", f, "+ Přidat číslo");
   }
   return h + "</fieldset>";
+}
+
+// stav prvního importu dat na serveru (RES + RÚIAN trvá desítky minut)
+function showImport(im) {
+  const b = $("#demo-badge");
+  if (!im || (!im.running && !im.error)) return;
+  b.classList.remove("hidden");
+  b.textContent = im.error ? "Import dat selhal" : (im.step || "Importuji data…");
+  b.title = im.error || "Data firem se stahují z veřejných rejstříků. Hledání bude kompletní, až import doběhne.";
+  if (im.running) setTimeout(async () => {
+    try { const m = await api("/api/meta"); showImport(m.import); if (!m.import.running) location.reload(); } catch {}
+  }, 30000);
 }
 
 function renderEditor() {
