@@ -184,7 +184,7 @@ def public_web():
     if ROOT_REDIRECT:
         from fastapi.responses import RedirectResponse
         return RedirectResponse(ROOT_REDIRECT)
-    return FileResponse(STATIC / "web" / "index.html")
+    return FileResponse(STATIC / "web" / "index.html", headers={"Cache-Control": "no-cache"})
 
 
 @app.get("/nase-crm", include_in_schema=False)
