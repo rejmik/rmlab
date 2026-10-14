@@ -1,0 +1,42 @@
+# Veřejný web RM Lab → Wedos (rmlab.rejmon.net) přes FTP.
+# Spustí se po každé změně veřejného webu na větvi main, nebo ručně (Actions → Run workflow).
+# V Settings → Secrets and variables → Actions nastavte:
+#   WEDOS_FTP_SERVER    např. 123456.w56.wedos.net
+#   WEDOS_FTP_USER      FTP uživatel
+#   WEDOS_FTP_PASSWORD  FTP heslo
+#   WEDOS_FTP_DIR       cílová složka subdomény, např. /www/subdom/rmlab/  (musí končit lomítkem)
+name: Web na Wedos
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "app/static/web/**"
+      - "app/static/img/favicon.svg"
+      - "deploy/wedos/**"
+      - ".github/workflows/web-wedos.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sestavit web
+        run: |
+          mkdir -p dist
+          sed 's#/static/img/favicon.svg#favicon.svg#' app/static/web/index.html > dist/index.html
+          cp app/static/img/favicon.svg dist/
+          cp deploy/wedos/.htaccess deploy/wedos/robots.txt dist/
+          ls -la dist
+
+      - name: Nahrát na Wedos
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.WEDOS_FTP_SERVER }}
+          username: ${{ secrets.WEDOS_FTP_USER }}
+          password: ${{ secrets.WEDOS_FTP_PASSWORD }}
+          server-dir: ${{ secrets.WEDOS_FTP_DIR }}
+          local-dir: ./dist/
+          dangerous-clean-slate: false
