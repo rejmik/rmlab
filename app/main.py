@@ -12,7 +12,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from . import ai, enrich, places, sites
 from .auth import hash_password, secret_key, verify_password
-from .config import (ADMIN_NAME, ADMIN_PASSWORD, ADMIN_USER, AUTO_IMPORT, BASE_DIR, CLAIM_DAYS, ENRICH_MAX,
+from .config import (ADMIN_NAME, ADMIN_PASSWORD, ADMIN_RESET, ADMIN_USER, AUTO_IMPORT, BASE_DIR, CLAIM_DAYS, ENRICH_MAX,
                      HTTPS_ONLY, LOGIN_MAX_FAILS, ROOT_REDIRECT)
 from . import checklist as checklist_mod
 from .db import connect, get_meta, init_db, set_meta
@@ -57,6 +57,15 @@ def _startup():
             conn.execute("INSERT INTO users(username, display_name, password_hash, is_admin) VALUES (?,?,?,1)",
                          (ADMIN_USER.strip().lower(), ADMIN_NAME or ADMIN_USER, hash_password(ADMIN_PASSWORD)))
             print(f"[rmlab] založen admin {ADMIN_USER}", flush=True)
+        elif ADMIN_USER and ADMIN_PASSWORD and ADMIN_RESET:
+            uname = ADMIN_USER.strip().lower()
+            n = conn.execute("UPDATE users SET password_hash=?, is_admin=1, active=1 WHERE username=?",
+                             (hash_password(ADMIN_PASSWORD), uname)).rowcount
+            if not n:
+                conn.execute("INSERT INTO users(username, display_name, password_hash, is_admin) VALUES (?,?,?,1)",
+                             (uname, ADMIN_NAME or ADMIN_USER, hash_password(ADMIN_PASSWORD)))
+            print(f"[rmlab] heslo admina {uname} nastaveno z LF_ADMIN_PASSWORD – smažte LF_ADMIN_RESET", flush=True)
+        print("[rmlab] uživatelé: " + ", ".join(r[0] for r in conn.execute("SELECT username FROM users")), flush=True)
         # import se zkouší při každém startu, dokud jednou celý neproběhne (i po přerušení nebo plném disku)
         need_data = AUTO_IMPORT and get_meta(conn, "auto_import_done") != "1"
     if need_data:

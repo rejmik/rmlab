@@ -47,6 +47,8 @@ ROOT_REDIRECT = os.environ.get("LF_ROOT_REDIRECT", "")
 ADMIN_USER = os.environ.get("LF_ADMIN_USER", "")
 ADMIN_PASSWORD = os.environ.get("LF_ADMIN_PASSWORD", "")
 ADMIN_NAME = os.environ.get("LF_ADMIN_NAME", "")
+# 1 = při startu nastavit adminovi heslo z LF_ADMIN_PASSWORD (když heslo nefunguje); pak proměnnou smazat
+ADMIN_RESET = os.environ.get("LF_ADMIN_RESET", "0") == "1"
 # 1 = když databáze nemá reálná data firem, stáhne a naimportuje RES + RÚIAN na pozadí
 AUTO_IMPORT = os.environ.get("LF_AUTO_IMPORT", "0") == "1"
 # Omezení pokusů o přihlášení: max. počet neúspěchů z jedné IP za 15 minut
