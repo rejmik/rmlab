@@ -1,15 +1,15 @@
-"""Upozornění e-mailem na novou poptávku z webu (Resend API nebo SMTP). Chyby jen zaloguje."""
+"""Upozornění e-mailem na novou poptávku z webu (Google Apps Script, Resend API nebo SMTP). Chyby jen zaloguje."""
 import smtplib
 from email.message import EmailMessage
 
 import httpx
 
-from .config import (MAIL_FROM, NOTIFY_TO, PUBLIC_URL, RESEND_API_KEY, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT,
+from .config import (GAS_SECRET, GAS_URL, MAIL_FROM, NOTIFY_TO, PUBLIC_URL, RESEND_API_KEY, SMTP_HOST, SMTP_PASSWORD, SMTP_PORT,
                      SMTP_USER)
 
 
 def enabled() -> bool:
-    return bool(NOTIFY_TO and (RESEND_API_KEY or SMTP_HOST))
+    return bool(NOTIFY_TO and ((GAS_URL and GAS_SECRET) or RESEND_API_KEY or SMTP_HOST))
 
 
 def _text(q: dict) -> str:
@@ -26,7 +26,18 @@ def send_inquiry(q: dict) -> None:
     subject = f"Nová poptávka: {q['company']} ({q['name']})"
     reply_to = q["contact"] if "@" in q["contact"] else None
     try:
-        if RESEND_API_KEY:
+        if GAS_URL and GAS_SECRET:
+            payload = {"secret": GAS_SECRET, "to": ", ".join(to), "subject": subject, "text": _text(q),
+                       "replyTo": reply_to or ""}
+            r = httpx.post(GAS_URL, json=payload, timeout=20, follow_redirects=True)
+            r.raise_for_status()
+            try:
+                res = r.json()
+            except ValueError:
+                raise RuntimeError("Apps Script nevrátil JSON – zkontroluj nasazení (přístup: Kdokoli)") from None
+            if not res.get("ok"):
+                raise RuntimeError(f"Apps Script: {res.get('error') or res}")
+        elif RESEND_API_KEY:
             payload = {"from": MAIL_FROM, "to": to, "subject": subject, "text": _text(q)}
             if reply_to:
                 payload["reply_to"] = reply_to

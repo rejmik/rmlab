@@ -61,6 +61,9 @@ LOGIN_MAX_FAILS = int(os.environ.get("LF_LOGIN_MAX_FAILS", "10"))
 NOTIFY_TO = os.environ.get("LF_NOTIFY_TO", "")
 # Varianta A – Resend (https://resend.com), funguje i tam, kde hosting blokuje SMTP
 RESEND_API_KEY = os.environ.get("LF_RESEND_API_KEY", "")
+# Varianta G – Google Apps Script ve vlastním Google Workspace (posílá přes Gmail, jde přes HTTPS)
+GAS_URL = os.environ.get("LF_GAS_URL", "").strip()
+GAS_SECRET = os.environ.get("LF_GAS_SECRET", "").strip().strip('"').strip("'")
 # Varianta B – vlastní SMTP server
 SMTP_HOST = os.environ.get("LF_SMTP_HOST", "")
 SMTP_PORT = int(os.environ.get("LF_SMTP_PORT", "587"))
