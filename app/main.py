@@ -1,6 +1,7 @@
 """RM Lab – webové API + statický frontend."""
 import datetime as dt
 import json
+from pathlib import Path
 from typing import List, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -56,7 +57,8 @@ def _startup():
             conn.execute("INSERT INTO users(username, display_name, password_hash, is_admin) VALUES (?,?,?,1)",
                          (ADMIN_USER.strip().lower(), ADMIN_NAME or ADMIN_USER, hash_password(ADMIN_PASSWORD)))
             print(f"[rmlab] založen admin {ADMIN_USER}", flush=True)
-        need_data = AUTO_IMPORT and conn.execute("SELECT COUNT(*) FROM firms").fetchone()[0] < 1000
+        # import se zkouší při každém startu, dokud jednou celý neproběhne (i po přerušení nebo plném disku)
+        need_data = AUTO_IMPORT and get_meta(conn, "auto_import_done") != "1"
     if need_data:
         import threading
         threading.Thread(target=_auto_import, daemon=True).start()
@@ -80,6 +82,14 @@ def _auto_import():
         importers.import_res(res)
         IMPORT_STATE["step"] = "Importuji souřadnice adres…"
         importers.import_ruian(ruian)
+        with connect() as conn:
+            set_meta(conn, "auto_import_done", "1")
+        # stažené soubory už nejsou potřeba – uvolní místo na disku serveru
+        for f in (res, ruian):
+            try:
+                Path(f).unlink()
+            except OSError:
+                pass
         IMPORT_STATE["step"] = "Hotovo"
     except Exception as ex:  # noqa: BLE001 – stav se ukáže v aplikaci
         IMPORT_STATE["error"] = str(ex)
