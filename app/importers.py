@@ -225,6 +225,8 @@ def _attach_coords(conn) -> None:
     conn.execute("DELETE FROM firm_geo")
     conn.execute("INSERT INTO firm_geo SELECT rid, lat, lat, lon, lon FROM firms WHERE lat IS NOT NULL")
     n = conn.execute("SELECT COUNT(*) FROM firm_geo").fetchone()[0]
+    from .db import rebuild_firm_mini
+    rebuild_firm_mini(conn)
     build_obce(conn)
     conn.commit()
     _log(f"Index hotov: {n:,} firem s polohou")
@@ -284,6 +286,8 @@ def load_demo(n: int = 400, seed: int = 42) -> None:
                         VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""", rows)
     conn.execute("UPDATE firms SET addr_count = (SELECT COUNT(*) FROM firms f2 WHERE f2.kodadm = firms.kodadm)")
     conn.execute("INSERT INTO firm_geo SELECT rid, lat, lat, lon, lon FROM firms WHERE lat IS NOT NULL")
+    from .db import rebuild_firm_mini
+    rebuild_firm_mini(conn)
     build_obce(conn)
     set_meta(conn, "demo", "1")
     set_meta(conn, "res_imported_at", "DEMO")

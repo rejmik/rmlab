@@ -70,9 +70,21 @@ def _startup():
             print(f"[rmlab] heslo z LF_ADMIN_PASSWORD má {len(ADMIN_PASSWORD)} znaků", flush=True)
         # import se zkouší při každém startu, dokud jednou celý neproběhne (i po přerušení nebo plném disku)
         need_data = AUTO_IMPORT and get_meta(conn, "auto_import_done") != "1"
+        need_mini = (not need_data and get_meta(conn, "firm_mini_ok") != "1"
+                     and conn.execute("SELECT 1 FROM firm_geo LIMIT 1").fetchone() is not None)
+    import threading
     if need_data:
-        import threading
         threading.Thread(target=_auto_import, daemon=True).start()
+    elif need_mini:
+        threading.Thread(target=_build_mini, daemon=True).start()
+
+
+def _build_mini():
+    from .db import rebuild_firm_mini
+    print("[rmlab] stavím rychlý index pro hledání…", flush=True)
+    with connect() as conn:
+        n = rebuild_firm_mini(conn)
+    print(f"[rmlab] rychlý index hotov ({n} firem)", flush=True)
 
 
 IMPORT_STATE = {"running": False, "step": "", "error": ""}
@@ -276,26 +288,52 @@ def _lead_view(row, user_id, now_iso):
     }
 
 
+FULL_COLS = """f.*, s.p_noweb, s.vitality, s.priority, s.enriched,
+               l.status l_status, l.owner_id l_owner, l.claimed_until l_until, l.next_action l_next,
+               u.display_name l_owner_name"""
+FULL_JOINS = """LEFT JOIN scores s ON s.ico = f.ico
+        LEFT JOIN leads l ON l.ico = f.ico
+        LEFT JOIN users u ON u.id = l.owner_id"""
+
+
+def _search_rows(conn, body, forms, nace_set, box):
+    """Kandidáti v okruhu. Nejdřív se filtruje nad malou tabulkou firm_mini (rychlé),
+    teprve pro vyfiltrované firmy se čtou celé záznamy z velké tabulky firms."""
+    min_lat, max_lat, min_lon, max_lon = box
+    ph = ",".join("?" * len(forms))
+    if get_meta(conn, "firm_mini_ok") != "1":   # starší databáze, než se index dopočítá
+        return conn.execute(f"""SELECT {FULL_COLS} FROM firm_geo g JOIN firms f ON f.rid = g.id {FULL_JOINS}
+            WHERE g.min_lat >= ? AND g.max_lat <= ? AND g.min_lon >= ? AND g.max_lon <= ?
+              AND f.forma IN ({ph})""", [min_lat, max_lat, min_lon, max_lon, *forms]).fetchall()
+    cand = conn.execute(f"""SELECT m.rid, m.lat, m.lon, m.nace, m.katpo FROM firm_geo g JOIN firm_mini m ON m.rid = g.id
+        WHERE g.min_lat >= ? AND g.max_lat <= ? AND g.min_lon >= ? AND g.max_lon <= ?
+          AND m.forma IN ({ph})""", [min_lat, max_lat, min_lon, max_lon, *forms]).fetchall()
+    rids = []
+    for rid, lat, lon, nace, katpo in cand:
+        if haversine_km(body.lat, body.lon, lat, lon) > body.radius_km:
+            continue
+        if nace_set and not any((nace or "").startswith(c) for c in nace_set):
+            continue
+        rank = katpo_rank(katpo)
+        if (body.min_staff and rank < body.min_staff) or rank > body.max_staff:
+            continue
+        rids.append(rid)
+    rows = []
+    for i in range(0, len(rids), 900):
+        chunk = rids[i:i + 900]
+        rows += conn.execute(f"SELECT {FULL_COLS} FROM firms f {FULL_JOINS} WHERE f.rid IN ({','.join('?' * len(chunk))})",
+                             chunk).fetchall()
+    return rows
+
+
 @app.post("/api/search")
 def search(body: SearchIn, user=Depends(current_user), conn=Depends(db)):
     min_lat, max_lat, min_lon, max_lon = bbox(body.lat, body.lon, body.radius_km)
     forms = [c for k in body.forms for c in FORM_GROUPS.get(k, {}).get("codes", [])]
     if not forms:
         return {"total": 0, "results": []}
-    placeholders = ",".join("?" * len(forms))
-    sql = f"""
-        SELECT f.*, s.p_noweb, s.vitality, s.priority, s.enriched,
-               l.status l_status, l.owner_id l_owner, l.claimed_until l_until, l.next_action l_next,
-               u.display_name l_owner_name
-        FROM firm_geo g JOIN firms f ON f.rid = g.id
-        LEFT JOIN scores s ON s.ico = f.ico
-        LEFT JOIN leads l ON l.ico = f.ico
-        LEFT JOIN users u ON u.id = l.owner_id
-        WHERE g.min_lat >= ? AND g.max_lat <= ? AND g.min_lon >= ? AND g.max_lon <= ?
-          AND f.forma IN ({placeholders})
-    """
-    rows = conn.execute(sql, [min_lat, max_lat, min_lon, max_lon, *forms]).fetchall()
     nace_set = set(body.nace)
+    rows = _search_rows(conn, body, forms, nace_set, (min_lat, max_lat, min_lon, max_lon))
     now_iso = _iso(_now())
     out, to_score = [], []
     for r in rows:

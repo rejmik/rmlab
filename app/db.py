@@ -31,6 +31,17 @@ CREATE VIRTUAL TABLE IF NOT EXISTS firm_geo USING rtree(
     id, min_lat, max_lat, min_lon, max_lon
 );
 
+-- Malá kopie polí potřebných pro filtrování při hledání (vejde se do paměti).
+-- Velká tabulka firms se pak čte jen pro firmy, které projdou filtrem.
+CREATE TABLE IF NOT EXISTS firm_mini (
+    rid   INTEGER PRIMARY KEY,
+    lat   REAL,
+    lon   REAL,
+    forma TEXT,
+    nace  TEXT,
+    katpo TEXT
+);
+
 -- Souřadnice adresních míst RÚIAN (jen ta, na kterých sídlí nějaká firma)
 CREATE TABLE IF NOT EXISTS adm (
     kod INTEGER PRIMARY KEY,
@@ -190,3 +201,13 @@ def set_meta(conn: sqlite3.Connection, key: str, value: str) -> None:
 def get_meta(conn: sqlite3.Connection, key: str):
     row = conn.execute("SELECT value FROM meta WHERE key=?", (key,)).fetchone()
     return row["value"] if row else None
+
+
+def rebuild_firm_mini(conn: sqlite3.Connection) -> int:
+    """Přestaví malou tabulku pro rychlé hledání (po importu nebo při prvním startu)."""
+    conn.execute("DELETE FROM firm_mini")
+    conn.execute("INSERT INTO firm_mini SELECT rid, lat, lon, forma, nace, katpo FROM firms WHERE lat IS NOT NULL")
+    n = conn.execute("SELECT COUNT(*) FROM firm_mini").fetchone()[0]
+    set_meta(conn, "firm_mini_ok", "1")
+    conn.commit()
+    return n
