@@ -266,7 +266,7 @@ $("#export-btn").addEventListener("click", () => {
 // ------------------------------------------------------------------ detail
 $("#drawer-close").addEventListener("click", closeDrawer);
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeDrawer(); });
-function closeDrawer() { $("#drawer").classList.add("hidden"); state.selected = null; $$("tr.selected").forEach((t) => t.classList.remove("selected")); }
+function closeDrawer() { $("#drawer").classList.add("hidden"); state.selected = null; inqOpen = null; $$("tr.selected").forEach((t) => t.classList.remove("selected")); }
 
 async function openFirm(ico) {
   state.selected = ico;
@@ -808,23 +808,70 @@ function setInqCount(n) {
 async function loadInquiries() {
   try { renderInquiries(await api("/api/inquiries")); } catch (err) { $("#inq-body").innerHTML = `<p class="error">${esc(err.message)}</p>`; }
 }
+const INQ_ST = { new: ["Nová", "won"], progress: ["Řeší se", "warn"], done: ["Vyřízeno", ""] };
+let inqRows = [], inqOpen = null;
+function inqBadge(st) { const [t, c] = INQ_ST[st] || [st, ""]; return `<span class="badge ${c}">${t}</span>`; }
 function renderInquiries(rows) {
+  inqRows = rows;
   setInqCount(rows.filter((r) => r.status === "new").length);
-  $("#inq-body").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Kdy</th><th>Kdo</th><th>Kontakt</th><th>Co potřebuje</th><th>Stav</th><th></th></tr></thead><tbody>` +
-    rows.map((r) => `<tr class="${r.status === "done" ? "inactive" : ""}">
+  $("#inq-body").innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>Kdy</th><th>Kdo</th><th>Kontakt</th><th>Co potřebuje</th><th>Stav</th><th>Řeší</th></tr></thead><tbody>` +
+    rows.map((r) => `<tr data-inq-row="${r.id}" class="clickable ${r.status === "done" ? "inactive" : ""} ${inqOpen === r.id ? "selected" : ""}">
       <td class="sub">${fmtDT(r.created_at)}</td>
       <td><div class="firm-name">${esc(r.company)}</div><div class="sub">${esc(r.name)}</div></td>
       <td class="mono">${esc(r.contact)}</td>
-      <td><b>${esc(r.need || "")}</b>${r.message ? `<div class="sub" style="white-space:pre-line;max-width:46ch">${esc(r.message)}</div>` : ""}</td>
-      <td>${r.status === "new" ? '<span class="badge won">Nová</span>' : `<span class="badge">Vyřízeno</span><div class="sub">${esc(r.handled_by_name || "")} ${fmtDT(r.handled_at)}</div>`}</td>
-      <td><button class="btn small ${r.status === "new" ? "primary" : "ghost"}" data-inq="${r.id}" data-st="${r.status === "new" ? "done" : "new"}">${r.status === "new" ? "Vyřízeno" : "Vrátit"}</button></td>
+      <td><b>${esc(r.need || "")}</b>${r.message ? `<div class="sub" style="white-space:pre-line;max-width:46ch;max-height:3.2em;overflow:hidden">${esc(r.message)}</div>` : ""}</td>
+      <td>${inqBadge(r.status)}</td>
+      <td class="sub">${esc(r.assigned_name || "—")}</td>
     </tr>`).join("") + "</tbody></table></div>"
     : '<p class="muted">Zatím žádná poptávka. Jakmile někdo vyplní formulář na webu, objeví se tady.</p>';
+  if (inqOpen !== null) { const r = rows.find((x) => x.id === inqOpen); if (r) renderInqDetail(r); else closeDrawer(); }
 }
-$("#inq-body").addEventListener("click", async (e) => {
-  const b = e.target.closest("button[data-inq]"); if (!b) return;
-  try { renderInquiries(await api("/api/inquiries/" + b.dataset.inq, { method: "PUT", body: { status: b.dataset.st } })); }
-  catch (err) { toast(err.message); }
+function renderInqDetail(r) {
+  const users = (state.meta && state.meta.users) || [];
+  const isMail = /@/.test(r.contact || ""), tel = (r.contact || "").replace(/[^\d+]/g, "");
+  const contactLink = isMail ? `<a href="mailto:${esc(r.contact)}">${esc(r.contact)}</a>` : (tel.length >= 9 ? `<a href="tel:${esc(tel)}">${esc(r.contact)}</a>` : esc(r.contact));
+  $("#drawer-content").innerHTML = `
+    <h2>${esc(r.company || r.name)}</h2>
+    <p class="sub">Poptávka z webu · ${fmtDT(r.created_at)}</p>
+    <div class="panel" style="margin-top:14px">
+      <p><span class="sub">Jméno</span><br><b>${esc(r.name)}</b></p>
+      <p><span class="sub">Kontakt</span><br>${contactLink}</p>
+      <p><span class="sub">Co potřebuje</span><br><b>${esc(r.need || "—")}</b></p>
+      ${r.message ? `<p><span class="sub">Zpráva</span><br><span style="white-space:pre-line">${esc(r.message)}</span></p>` : ""}
+    </div>
+    <h3 style="margin-top:18px">Stav</h3>
+    <div class="row" style="display:flex;gap:6px;flex-wrap:wrap">
+      ${Object.entries(INQ_ST).map(([k, [t]]) => `<button class="btn small ${r.status === k ? "primary" : "ghost"}" data-inq-st="${k}">${t}</button>`).join("")}
+    </div>
+    ${r.status === "done" && r.handled_by_name ? `<p class="sub">Vyřídil(a) ${esc(r.handled_by_name)} · ${fmtDT(r.handled_at)}</p>` : ""}
+    <h3 style="margin-top:18px">Kdo to řeší</h3>
+    <select id="inq-assign"><option value="">— nikdo —</option>${users.map((u) => `<option value="${u.id}" ${r.assigned_to === u.id ? "selected" : ""}>${esc(u.display_name)}</option>`).join("")}</select>
+    <h3 style="margin-top:18px">Poznámka</h3>
+    <textarea id="inq-note" rows="5" maxlength="2000" placeholder="Co jsme domluvili, kdy zavolat…">${esc(r.note || "")}</textarea>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:10px">
+      <button class="btn small primary" id="inq-save-note">Uložit poznámku</button>
+      <button class="btn small ghost" id="inq-del" style="color:var(--rec)">Smazat poptávku</button>
+    </div>`;
+  const put = async (body, msg) => {
+    try { renderInquiries(await api("/api/inquiries/" + r.id, { method: "PUT", body })); if (msg) toast(msg); } catch (err) { toast(err.message); }
+  };
+  $$("#drawer-content [data-inq-st]").forEach((b) => b.addEventListener("click", () => put({ status: b.dataset.inqSt })));
+  $("#inq-assign").addEventListener("change", (e) => put(e.target.value ? { assigned_to: +e.target.value } : { unassign: true }, "Přiřazeno"));
+  $("#inq-save-note").addEventListener("click", () => put({ note: $("#inq-note").value }, "Poznámka uložena"));
+  $("#inq-del").addEventListener("click", async () => {
+    if (!confirm(`Opravdu smazat poptávku od ${r.company || r.name}? Nejde to vrátit.`)) return;
+    try { const rows = await api("/api/inquiries/" + r.id, { method: "DELETE" }); inqOpen = null; closeDrawer(); renderInquiries(rows); toast("Poptávka smazána"); }
+    catch (err) { toast(err.message); }
+  });
+}
+$("#inq-body").addEventListener("click", (e) => {
+  if (e.target.closest("a")) return;
+  const tr = e.target.closest("tr[data-inq-row]"); if (!tr) return;
+  const r = inqRows.find((x) => x.id === +tr.dataset.inqRow); if (!r) return;
+  inqOpen = r.id;
+  $$("#inq-body tr").forEach((t) => t.classList.toggle("selected", t === tr));
+  $("#drawer").classList.remove("hidden");
+  renderInqDetail(r);
 });
 
 function renderEditor() {

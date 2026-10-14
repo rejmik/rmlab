@@ -1067,25 +1067,53 @@ def public_inquiry(body: InquiryIn, request: Request, conn=Depends(db)):
     return {"ok": True}
 
 
+INQ_STATUS = {"new": "Nová", "progress": "Řeší se", "done": "Vyřízeno"}
+
+
 @app.get("/api/inquiries")
 def list_inquiries(user=Depends(current_user), conn=Depends(db)):
-    rows = conn.execute("""SELECT i.*, u.display_name handled_by_name FROM inquiries i
-                           LEFT JOIN users u ON u.id = i.handled_by ORDER BY (i.status = 'new') DESC, i.id DESC LIMIT 300""")
+    rows = conn.execute("""SELECT i.*, u.display_name handled_by_name, a.display_name assigned_name FROM inquiries i
+                           LEFT JOIN users u ON u.id = i.handled_by
+                           LEFT JOIN users a ON a.id = i.assigned_to
+                           ORDER BY CASE i.status WHEN 'new' THEN 0 WHEN 'progress' THEN 1 ELSE 2 END, i.id DESC LIMIT 300""")
     return [dict(r) for r in rows]
 
 
 class InquiryUpdate(BaseModel):
-    status: str
-    note: str = Field("", max_length=2000)
+    status: Optional[str] = None
+    assigned_to: Optional[int] = None
+    unassign: bool = False
+    note: Optional[str] = Field(None, max_length=2000)
 
 
 @app.put("/api/inquiries/{iid}")
 def update_inquiry(iid: int, body: InquiryUpdate, user=Depends(current_user), conn=Depends(db)):
-    if body.status not in ("new", "done"):
-        raise HTTPException(400, "Neplatný stav")
-    n = conn.execute("UPDATE inquiries SET status=?, note=?, handled_by=?, handled_at=? WHERE id=?",
-                     (body.status, body.note, user["id"] if body.status == "done" else None,
-                      _iso(_now()) if body.status == "done" else None, iid)).rowcount
-    if not n:
+    row = conn.execute("SELECT * FROM inquiries WHERE id=?", (iid,)).fetchone()
+    if not row:
         raise HTTPException(404, "Poptávka neexistuje")
+    status, assigned = row["status"], row["assigned_to"]
+    if body.status is not None:
+        if body.status not in INQ_STATUS:
+            raise HTTPException(400, "Neplatný stav")
+        status = body.status
+    if body.unassign:
+        assigned = None
+    elif body.assigned_to is not None:
+        if not conn.execute("SELECT 1 FROM users WHERE id=? AND active=1", (body.assigned_to,)).fetchone():
+            raise HTTPException(400, "Neznámý uživatel")
+        assigned = body.assigned_to
+        if status == "new":
+            status = "progress"          # přiřazením se poptávka začíná řešit
+    done = status == "done"
+    conn.execute("""UPDATE inquiries SET status=?, assigned_to=?, note=COALESCE(?, note),
+                    handled_by=?, handled_at=? WHERE id=?""",
+                 (status, assigned, body.note,
+                  (row["handled_by"] or user["id"]) if done else None,
+                  (row["handled_at"] or _iso(_now())) if done else None, iid))
+    return list_inquiries(user, conn)
+
+
+@app.delete("/api/inquiries/{iid}")
+def delete_inquiry(iid: int, user=Depends(current_user), conn=Depends(db)):
+    conn.execute("DELETE FROM inquiries WHERE id=?", (iid,))
     return list_inquiries(user, conn)

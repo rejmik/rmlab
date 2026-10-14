@@ -392,3 +392,6 @@ legend { font: 700 11px var(--mono); letter-spacing: .12em; text-transform: uppe
 dialog { border-radius: 0; border: 1px solid var(--line); box-shadow: 0 20px 60px rgba(0,0,0,.18); }
 .nace-box summary, .chk-group { color: var(--ink); }
 .counter.bad { color: var(--rec); }
+#inq-body tr.clickable { cursor: pointer; }
+#inq-body tr.clickable:hover td { background: #fafafa; }
+#drawer-content textarea, #drawer-content select { width: 100%; }

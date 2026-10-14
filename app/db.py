@@ -44,7 +44,8 @@ CREATE TABLE IF NOT EXISTS inquiries (
     status     TEXT NOT NULL DEFAULT 'new',     -- new | done
     handled_by INTEGER,
     handled_at TEXT,
-    note       TEXT
+    note       TEXT,
+    assigned_to INTEGER
 );
 
 -- Malá kopie polí potřebných pro filtrování při hledání (vejde se do paměti).
@@ -192,6 +193,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     cols = {r["name"] for r in conn.execute("PRAGMA table_info(users)")}
     if "active" not in cols:
         conn.execute("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1")
+    icols = {r["name"] for r in conn.execute("PRAGMA table_info(inquiries)")}
+    if icols and "assigned_to" not in icols:
+        conn.execute("ALTER TABLE inquiries ADD COLUMN assigned_to INTEGER")
     # Když ještě nikdo není admin, stane se jím první založený uživatel
     if not conn.execute("SELECT 1 FROM users WHERE is_admin=1 AND active=1").fetchone():
         conn.execute("UPDATE users SET is_admin=1 WHERE id=(SELECT MIN(id) FROM users WHERE active=1)")
